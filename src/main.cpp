@@ -161,7 +161,8 @@ public:
 
       doc["mqtt_server"] = custom_mqtt_server.getValue();
       doc["mqtt_port"] = custom_mqtt_port.getValue();
-      doc["mqtt_user"] = custom_mqtt_username.getValue();;
+      doc["mqtt_user"] = custom_mqtt_username.getValue();
+      ;
       doc["mqtt_password"] = custom_mqtt_password.getValue();
 
       Serial.println("Sauvegarde de la configuration");
@@ -259,7 +260,7 @@ public:
     }
   }
 
-  PubSubClient& GetClientMQTT()
+  PubSubClient &GetClientMQTT()
   {
     return this->clientMQTT;
   }
@@ -271,6 +272,10 @@ private:
   ConfigurationStation &configurationStation;
   Adafruit_BME280 &bme280Station;
   LiquidCrystal_I2C &ecranLCDStation;
+  long tempsDerniereAlternanceLCD;
+  bool togglePrintLCD = false;
+  const int delaiAlternanceEtPublication = 5000;
+  long tempsDernierePublicationMQTT;
 
 public:
   StationMeteo(Bouton &p_boutonStation, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, LiquidCrystal_I2C &p_ecranLCD)
@@ -293,51 +298,69 @@ public:
 
   void PublierInfosMeteoMQTT()
   {
-    String temperature = String(bme280Station.readTemperature());
-    String humidite = String(bme280Station.readHumidity());
-    String pression = String(bme280Station.readPressure() / 100.0F);
-    String altitude = String(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
+    if ((millis() - tempsDernierePublicationMQTT) >= delaiAlternanceEtPublication)
+    {
+      String temperature = String(bme280Station.readTemperature());
+      String humidite = String(bme280Station.readHumidity());
+      String pression = String(bme280Station.readPressure() / 100.0F);
+      String altitude = String(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
 
-    this->configurationStation.GetClientMQTT().publish("stationMeteo/temperature", temperature.c_str());
-    this->configurationStation.GetClientMQTT().publish("stationMeteo/humidite", humidite.c_str());
-    this->configurationStation.GetClientMQTT().publish("stationMeteo/pression", pression.c_str());
-    this->configurationStation.GetClientMQTT().publish("stationMeteo/altitude", altitude.c_str());
-    this->configurationStation.GetClientMQTT().loop();
+      this->configurationStation.GetClientMQTT().publish("stationMeteo/temperature", temperature.c_str());
+      this->configurationStation.GetClientMQTT().publish("stationMeteo/humidite", humidite.c_str());
+      this->configurationStation.GetClientMQTT().publish("stationMeteo/pression", pression.c_str());
+      this->configurationStation.GetClientMQTT().publish("stationMeteo/altitude", altitude.c_str());
+      // Selon la doc, la methode loop doit être lancé au 15 secondes maximum par défaut.
+      this->configurationStation.GetClientMQTT().loop();
+      tempsDernierePublicationMQTT = millis();
+    }
   }
 
   void AfficherInfosLCD()
-  {
-    ecranLCDStation.setCursor(0, 0);
-    ecranLCDStation.print("Temp= ");
-    ecranLCDStation.print(bme280Station.readTemperature());
-    ecranLCDStation.print(" *C");
+  {   
+    if ((millis() - tempsDerniereAlternanceLCD) < delaiAlternanceEtPublication / 2)
+    {
+      if (!togglePrintLCD)
+      {
+        ecranLCDStation.clear();
+        ecranLCDStation.setCursor(0, 0);
+        ecranLCDStation.print("Temp= ");
+        ecranLCDStation.print(bme280Station.readTemperature());
+        ecranLCDStation.print(" *C");
 
-    ecranLCDStation.setCursor(0, 1);
-    ecranLCDStation.print("Press= ");
-    ecranLCDStation.print(bme280Station.readPressure() / 100.0F);
-    ecranLCDStation.print("hPa");
-    delay(2000);
+        ecranLCDStation.setCursor(0, 1);
+        ecranLCDStation.print("Press= ");
+        ecranLCDStation.print(bme280Station.readPressure() / 100.0F);
+        ecranLCDStation.print("hPa");
+        togglePrintLCD = true;
+      }
+    }
+    else if((millis() - tempsDerniereAlternanceLCD) >= delaiAlternanceEtPublication / 2)
+    {
+      if (togglePrintLCD)
+      {
+        ecranLCDStation.clear();
+        ecranLCDStation.setCursor(0, 0);
+        ecranLCDStation.print("Alt= ");
+        ecranLCDStation.print(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
+        ecranLCDStation.print(" m");
 
-    ecranLCDStation.clear();
-
-    ecranLCDStation.setCursor(0, 0);
-    ecranLCDStation.print("Alt= ");
-    ecranLCDStation.print(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
-    ecranLCDStation.print(" m");
-
-    ecranLCDStation.setCursor(0, 1);
-    ecranLCDStation.print("Hum= ");
-    ecranLCDStation.print(bme280Station.readHumidity());
-    ecranLCDStation.print(" %");
-    delay(2000);
-    ecranLCDStation.clear();
+        ecranLCDStation.setCursor(0, 1);
+        ecranLCDStation.print("Hum= ");
+        ecranLCDStation.print(bme280Station.readHumidity());
+        ecranLCDStation.print(" %");
+        togglePrintLCD = false;
+      }
+    }
+    if(millis() - tempsDerniereAlternanceLCD > delaiAlternanceEtPublication)
+    {
+      tempsDerniereAlternanceLCD = millis();
+    }
   }
 
   void Executer()
   {
     this->boutonStation.LireBoutonEtSetEtat();
-
-    if(this->boutonStation.GetEstAppuye())
+    if (this->boutonStation.GetEstAppuye())
     {
       this->configurationStation.ConfigurerReseauSurDemande();
       this->boutonStation.SetEstAppuye(false);
