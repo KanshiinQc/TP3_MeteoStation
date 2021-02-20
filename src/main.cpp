@@ -72,15 +72,20 @@ private:
 public:
   //static bool &doitSauvegarderConfig;
   ConfigurationStation()
-      : wifiManager(), custom_mqtt_server(), custom_mqtt_port(), custom_mqtt_username(),
-        custom_mqtt_password(), clientWifi(), clientMQTT(clientWifi) {}
+      : wifiManager(), custom_mqtt_server("mqttServer", "Serveur MQTT", mqttServer, 15), custom_mqtt_port("mqttPort", "Port MQTT", mqttPort, 4),
+        custom_mqtt_username("mqttUser", "Username MQTT", mqttUser, 40), custom_mqtt_password("mqttPassword", "Password MQTT", mqttPassword, 100),
+        clientWifi(), clientMQTT(clientWifi)
+  {
+    AjouterParametresWifiManagerCustom();
+    AttribuerMqttAPartirFichierConfig();
+  }
 
   static void SauvegarderConfigCallback()
   {
     Serial.println("Should save config");
     doitSauvegarderConfig = true;
   }
-  
+
   void ParametrerAvantLancement()
   {
     wifiManager.setSaveConfigCallback(SauvegarderConfigCallback);
@@ -105,27 +110,16 @@ public:
 
   void AjouterParametresWifiManagerCustom()
   {
-    //add all your parameters here
+    Serial.println("Ajout Des Parametres");
     wifiManager.addParameter(&custom_mqtt_server);
     wifiManager.addParameter(&custom_mqtt_port);
     wifiManager.addParameter(&custom_mqtt_username);
     wifiManager.addParameter(&custom_mqtt_password);
-
-    // We start by connecting to a WiFi network
-    if (!wifiManager.autoConnect(ssid, password))
-    {
-      Serial.println("non connecte :");
-    }
-    else
-    {
-      Serial.print("connecte a:");
-      Serial.println(ssid);
-    }
   }
 
   void MonterSystemeDeFichier()
   {
-    //clean FS, for testing
+    //Si besoin de formater
     //SPIFFS.format();
 
     //read configuration from FS json
@@ -152,13 +146,6 @@ public:
   {
     if (doitSauvegarderConfig)
     {
-      const char *mqttServeurWiFiManager = custom_mqtt_server.getValue();
-      const char *mqttPortWiFiManager = custom_mqtt_port.getValue();
-      const char *mqttUserWifiManager = custom_mqtt_username.getValue();
-      const char *mqttPassWifiManager = custom_mqtt_password.getValue();
-
-      Serial.println("saving config");
-
       File configFile = SPIFFS.open("/config.json", FILE_WRITE);
 
       if (!configFile)
@@ -169,11 +156,12 @@ public:
       DynamicJsonDocument doc(1024);
       deserializeJson(doc, configFile);
 
-      doc["mqtt_server"] = mqttServeurWiFiManager;
-      doc["mqtt_port"] = mqttPortWiFiManager;
-      doc["mqtt_user"] = mqttUserWifiManager;
-      doc["mqtt_password"] = mqttPassWifiManager;
+      doc["mqtt_server"] = custom_mqtt_server.getValue();
+      doc["mqtt_port"] = custom_mqtt_port.getValue();
+      doc["mqtt_user"] = custom_mqtt_username.getValue();;
+      doc["mqtt_password"] = custom_mqtt_password.getValue();
 
+      Serial.println("Sauvegarde de la configuration");
       serializeJson(doc, configFile);
       configFile.close();
       //end save
@@ -207,6 +195,7 @@ public:
 
         else
         {
+          Serial.println("VALEURS DANS LE FICHIERS CONFIG:");
           serializeJsonPretty(doc["mqtt_server"], Serial);
           serializeJsonPretty(doc["mqtt_port"], Serial);
           serializeJsonPretty(doc["mqtt_user"], Serial);
@@ -230,11 +219,6 @@ public:
     }
   }
 
-  void LancerPointAccesManuellement()
-  {
-    this->wifiManager.startConfigPortal(ssid, password);
-  }
-
   void ConfigurerMQTT()
   {
     int tentatives = 0;
@@ -244,7 +228,7 @@ public:
     {
       if (tentatives == 2)
       {
-        LancerPointAccesManuellement();
+        ConfigurerReseauSurDemande();
         SauvegarderConfigurationReseauDansFichier();
         AttribuerMqttAPartirFichierConfig();
       }
@@ -269,7 +253,6 @@ public:
   {
     return this->clientMQTT;
   }
-
 };
 class StationMeteo
 {
@@ -309,6 +292,34 @@ public:
     this->configurationStation.GetClientMQTT().publish("stationMeteo/humidite", humidite.c_str());
     this->configurationStation.GetClientMQTT().publish("stationMeteo/pression", pression.c_str());
     this->configurationStation.GetClientMQTT().publish("stationMeteo/altitude", altitude.c_str());
+    this->configurationStation.GetClientMQTT().loop();
+  }
+
+  void AfficherInfosLCD()
+  {
+    ecranLCDStation.setCursor(0, 0);
+    ecranLCDStation.print("Temp= ");
+    ecranLCDStation.print(bme280Station.readTemperature());
+    ecranLCDStation.print(" *C");
+
+    ecranLCDStation.setCursor(0, 1);
+    ecranLCDStation.print("Press= ");
+    ecranLCDStation.print(bme280Station.readPressure() / 100.0F);
+    ecranLCDStation.print(" hPa");
+    delay(2000);
+
+    ecranLCDStation.clear();
+
+    ecranLCDStation.setCursor(0, 0);
+    ecranLCDStation.print("Alt= ");
+    ecranLCDStation.print(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
+    ecranLCDStation.print(" m");
+
+    ecranLCDStation.setCursor(0, 1);
+    ecranLCDStation.print("Hum= ");
+    ecranLCDStation.print(bme280Station.readHumidity());
+    ecranLCDStation.print(" %");
+    ecranLCDStation.clear();
   }
 };
 
@@ -320,9 +331,12 @@ StationMeteo stationMeteo(boutonStation, configurationStation, bme280Station, ec
 
 void setup()
 {
+  Serial.begin(115200);
   stationMeteo.ParametrerAvantLancement();
 }
 
 void loop()
 {
+  stationMeteo.PublierInfosMeteoMQTT();
+  stationMeteo.AfficherInfosLCD();
 }
