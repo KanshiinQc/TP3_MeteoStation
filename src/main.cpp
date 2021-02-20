@@ -2,41 +2,30 @@
 #include <FS.h> // Selon la doc doit être en premier sinon tout crash et brûle :D.
 #include <Arduino.h>
 
-// Include(s) et Variables Pour Bouton
-const int borneBouton = 18;
+// Include(s) FS / JSON
+#include <ArduinoJson.h>
+#include <SPIFFS.h>
 
 // Include(s) Pour BME280
 #include <Adafruit_BME280.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 
-// Include(s) et Variables pour LCD
-#define SEALEVELPRESSURE_HPA (1013.25)
+// Include(s) pour LCD
+#define PRESSION_NIVEAU_MER (1013.25)
 #include <LiquidCrystal_I2C.h>
-int lcdColumns = 16;
-int lcdRows = 2;
 
-// Include(s) et Variables Connexion Wifi
+// Include(s) Connexion Wifi
 #include <AccessPointCredentials.h>
 #include <WiFi.h>
 #include <Update.h>
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <WifiManager.h>
-const char *ssid = MYSSID;
-const char *password = MYPSW;
 
-// Include(s) Et Variables File Message
+// Include(s) File Message
 #include <PubSubClient.h>
-char mqttServer[15];
-char mqttPort[5];
-char mqttUser[50];
-char mqttPassword[100];
-
-// Include(s) et Variables Pour FS / JSON
-#include <ArduinoJson.h>
-#include <SPIFFS.h>
-bool shouldSaveConfig = false;
+bool doitSauvegarderConfig;
 
 class Bouton
 {
@@ -63,14 +52,277 @@ public:
     this->estAppuye = boutonEstAppuye;
   }
 };
-class ConfigurationReseauStation
+class ConfigurationStation
 {
-  private:
-    WiFiManager wifiManager;
+private:
+  WiFiManager wifiManager;
+  WiFiManagerParameter custom_mqtt_server;
+  WiFiManagerParameter custom_mqtt_port;
+  WiFiManagerParameter custom_mqtt_username;
+  WiFiManagerParameter custom_mqtt_password;
+  WiFiClient clientWifi;
+  PubSubClient clientMQTT;
+  char mqttServer[15];
+  char mqttPort[5];
+  char mqttUser[50];
+  char mqttPassword[100];
+  const char ssid[50] = MYSSID;
+  const char password[50] = MYPSW;
 
+public:
+  //static bool &doitSauvegarderConfig;
+  ConfigurationStation()
+      : wifiManager(), custom_mqtt_server(), custom_mqtt_port(), custom_mqtt_username(),
+        custom_mqtt_password(), clientWifi(), clientMQTT(clientWifi) {}
+
+  static void SauvegarderConfigCallback()
+  {
+    Serial.println("Should save config");
+    doitSauvegarderConfig = true;
+  }
+  
+  void ParametrerAvantLancement()
+  {
+    wifiManager.setSaveConfigCallback(SauvegarderConfigCallback);
+    MonterSystemeDeFichier();
+    TenterConnexionAuWifi();
+    SauvegarderConfigurationReseauDansFichier();
+    ConfigurerMQTT();
+  }
+
+  void TenterConnexionAuWifi()
+  {
+    if (!wifiManager.autoConnect(ssid, password))
+    {
+      Serial.println("non connecte :");
+    }
+    else
+    {
+      Serial.print("connecte a:");
+      Serial.println(ssid);
+    }
+  }
+
+  void AjouterParametresWifiManagerCustom()
+  {
+    //add all your parameters here
+    wifiManager.addParameter(&custom_mqtt_server);
+    wifiManager.addParameter(&custom_mqtt_port);
+    wifiManager.addParameter(&custom_mqtt_username);
+    wifiManager.addParameter(&custom_mqtt_password);
+
+    // We start by connecting to a WiFi network
+    if (!wifiManager.autoConnect(ssid, password))
+    {
+      Serial.println("non connecte :");
+    }
+    else
+    {
+      Serial.print("connecte a:");
+      Serial.println(ssid);
+    }
+  }
+
+  void MonterSystemeDeFichier()
+  {
+    //clean FS, for testing
+    //SPIFFS.format();
+
+    //read configuration from FS json
+    Serial.println("mounting FS...");
+
+    if (SPIFFS.begin())
+    {
+      Serial.println("mounted file system");
+    }
+    else
+    {
+      Serial.println("Echec lors du montage du SYSTEME DE FICHIER");
+    }
+  }
+
+  void ConfigurerReseauSurDemande()
+  {
+    wifiManager.startConfigPortal(ssid, password);
+    SauvegarderConfigurationReseauDansFichier();
+    ConfigurerMQTT();
+  }
+
+  void SauvegarderConfigurationReseauDansFichier()
+  {
+    if (doitSauvegarderConfig)
+    {
+      const char *mqttServeurWiFiManager = custom_mqtt_server.getValue();
+      const char *mqttPortWiFiManager = custom_mqtt_port.getValue();
+      const char *mqttUserWifiManager = custom_mqtt_username.getValue();
+      const char *mqttPassWifiManager = custom_mqtt_password.getValue();
+
+      Serial.println("saving config");
+
+      File configFile = SPIFFS.open("/config.json", FILE_WRITE);
+
+      if (!configFile)
+      {
+        Serial.println("failed to open config.json file for writing");
+      }
+
+      DynamicJsonDocument doc(1024);
+      deserializeJson(doc, configFile);
+
+      doc["mqtt_server"] = mqttServeurWiFiManager;
+      doc["mqtt_port"] = mqttPortWiFiManager;
+      doc["mqtt_user"] = mqttUserWifiManager;
+      doc["mqtt_password"] = mqttPassWifiManager;
+
+      serializeJson(doc, configFile);
+      configFile.close();
+      //end save
+      doitSauvegarderConfig = false;
+    }
+  }
+
+  void AttribuerMqttAPartirFichierConfig()
+  {
+    if (SPIFFS.exists("/config.json"))
+    {
+      //file exists, reading and loading
+      Serial.println("reading config file");
+
+      File configFile = SPIFFS.open("/config.json", "r");
+
+      if (configFile)
+      {
+        Serial.println("opened config file");
+
+        DynamicJsonDocument doc(1024);
+
+        auto error = deserializeJson(doc, configFile);
+
+        if (error)
+        {
+          Serial.print(F("deserializeJson() failed with code "));
+          Serial.println(error.c_str());
+          return;
+        }
+
+        else
+        {
+          serializeJsonPretty(doc["mqtt_server"], Serial);
+          serializeJsonPretty(doc["mqtt_port"], Serial);
+          serializeJsonPretty(doc["mqtt_user"], Serial);
+          serializeJsonPretty(doc["mqtt_password"], Serial);
+          Serial.println();
+
+          strcpy(mqttServer, doc["mqtt_server"]);
+          strcpy(mqttPort, doc["mqtt_port"]);
+          strcpy(mqttUser, doc["mqtt_user"]);
+          strcpy(mqttPassword, doc["mqtt_password"]);
+
+          Serial.println("Fichier Json Modifié");
+        }
+
+        configFile.close();
+      }
+    }
+    else
+    {
+      Serial.println("Fichier config.json Inexistant");
+    }
+  }
+
+  void LancerPointAccesManuellement()
+  {
+    this->wifiManager.startConfigPortal(ssid, password);
+  }
+
+  void ConfigurerMQTT()
+  {
+    int tentatives = 0;
+    clientMQTT.setServer(mqttServer, atoi(mqttPort));
+
+    while (!clientMQTT.connected() && tentatives < 3)
+    {
+      if (tentatives == 2)
+      {
+        LancerPointAccesManuellement();
+        SauvegarderConfigurationReseauDansFichier();
+        AttribuerMqttAPartirFichierConfig();
+      }
+
+      Serial.println("Connecting to MQTT...");
+
+      if (clientMQTT.connect("ESP32Client", mqttUser, mqttPassword))
+      {
+        Serial.println("connected");
+      }
+      else
+      {
+        Serial.print("failed with state");
+        Serial.print(clientMQTT.state());
+        tentatives++;
+        delay(2000);
+      }
+    }
+  }
+
+  PubSubClient GetClientMQTT()
+  {
+    return this->clientMQTT;
+  }
 
 };
-class SystemeDeFichierStation
-{};
 class StationMeteo
-{};
+{
+private:
+  Bouton &boutonStation;
+  ConfigurationStation &configurationStation;
+  Adafruit_BME280 &bme280Station;
+  LiquidCrystal_I2C &ecranLCDStation;
+
+public:
+  StationMeteo(Bouton &p_boutonStation, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, LiquidCrystal_I2C &p_ecranLCD)
+      : boutonStation(p_boutonStation), configurationStation(p_configurationStation), bme280Station(p_bme280), ecranLCDStation(p_ecranLCD){};
+
+  void ParametrerAvantLancement()
+  {
+    this->configurationStation.ParametrerAvantLancement();
+
+    if (!bme280Station.begin(0x76))
+    {
+      Serial.println("Aucun baromètre trouvé, vérifier le câblage");
+      while (1)
+        ;
+    }
+
+    ecranLCDStation.init();
+    ecranLCDStation.backlight();
+  }
+
+  void PublierInfosMeteoMQTT()
+  {
+    String temperature = String(bme280Station.readTemperature());
+    String humidite = String(bme280Station.readHumidity());
+    String pression = String(bme280Station.readPressure() / 100.0F);
+    String altitude = String(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
+
+    this->configurationStation.GetClientMQTT().publish("stationMeteo/temperature", temperature.c_str());
+    this->configurationStation.GetClientMQTT().publish("stationMeteo/humidite", humidite.c_str());
+    this->configurationStation.GetClientMQTT().publish("stationMeteo/pression", pression.c_str());
+    this->configurationStation.GetClientMQTT().publish("stationMeteo/altitude", altitude.c_str());
+  }
+};
+
+Bouton boutonStation(18);
+ConfigurationStation configurationStation;
+Adafruit_BME280 bme280Station;
+LiquidCrystal_I2C ecranLCDStation(0x27, 16, 2);
+StationMeteo stationMeteo(boutonStation, configurationStation, bme280Station, ecranLCDStation);
+
+void setup()
+{
+  stationMeteo.ParametrerAvantLancement();
+}
+
+void loop()
+{
+}
