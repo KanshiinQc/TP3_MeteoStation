@@ -1,3 +1,4 @@
+/*
 #include <Arduino.h>
 
 // 2-dimensional array of row pin numbers:
@@ -337,3 +338,4 @@ void loop()
     Display(snow6);
   }
 }
+*/

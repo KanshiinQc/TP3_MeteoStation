@@ -77,12 +77,11 @@ public:
         clientWifi(), clientMQTT(clientWifi)
   {
     AjouterParametresWifiManagerCustom();
-    AttribuerMqttAPartirFichierConfig();
   }
 
   static void SauvegarderConfigCallback()
   {
-    Serial.println("Should save config");
+    Serial.println("La config doit être sauvegardée...");
     doitSauvegarderConfig = true;
   }
 
@@ -155,7 +154,7 @@ public:
         Serial.println("Erreur lors de l'ouverture du fichier config.json");
       }
 
-      DynamicJsonDocument doc(2048);
+      DynamicJsonDocument doc(512);
       deserializeJson(doc, configFile);
 
       doc["mqtt_server"] = custom_mqtt_server.getValue();
@@ -166,7 +165,7 @@ public:
       Serial.println("Sauvegarde de la configuration");
       serializeJson(doc, configFile);
       configFile.close();
-      //end save
+      doc.clear();
       doitSauvegarderConfig = false;
     }
   }
@@ -184,7 +183,7 @@ public:
       {
         Serial.println("fichier config.json ouvert avec succès!");
 
-        DynamicJsonDocument doc(2048);
+        DynamicJsonDocument doc(512);
 
         auto error = deserializeJson(doc, configFile);
 
@@ -218,6 +217,7 @@ public:
         }
 
         configFile.close();
+        doc.clear();
       }
     }
     else
@@ -256,7 +256,7 @@ public:
     }
   }
 
-  PubSubClient GetClientMQTT()
+  PubSubClient& GetClientMQTT()
   {
     return this->clientMQTT;
   }
@@ -312,7 +312,7 @@ public:
     ecranLCDStation.setCursor(0, 1);
     ecranLCDStation.print("Press= ");
     ecranLCDStation.print(bme280Station.readPressure() / 100.0F);
-    ecranLCDStation.print(" hPa");
+    ecranLCDStation.print("hPa");
     delay(2000);
 
     ecranLCDStation.clear();
@@ -326,6 +326,7 @@ public:
     ecranLCDStation.print("Hum= ");
     ecranLCDStation.print(bme280Station.readHumidity());
     ecranLCDStation.print(" %");
+    delay(2000);
     ecranLCDStation.clear();
   }
 };
