@@ -92,6 +92,7 @@ public:
     MonterSystemeDeFichier();
     TenterConnexionAuWifi();
     SauvegarderConfigurationReseauDansFichier();
+    AttribuerMqttAPartirFichierConfig();
     ConfigurerMQTT();
   }
 
@@ -123,11 +124,11 @@ public:
     //SPIFFS.format();
 
     //read configuration from FS json
-    Serial.println("mounting FS...");
+    Serial.println("Tentative de montage du système de fichier...");
 
     if (SPIFFS.begin())
     {
-      Serial.println("mounted file system");
+      Serial.println("Systeme de Fichier monté avec succès!");
     }
     else
     {
@@ -139,6 +140,7 @@ public:
   {
     wifiManager.startConfigPortal(ssid, password);
     SauvegarderConfigurationReseauDansFichier();
+    AttribuerMqttAPartirFichierConfig();
     ConfigurerMQTT();
   }
 
@@ -150,10 +152,10 @@ public:
 
       if (!configFile)
       {
-        Serial.println("failed to open config.json file for writing");
+        Serial.println("Erreur lors de l'ouverture du fichier config.json");
       }
 
-      DynamicJsonDocument doc(1024);
+      DynamicJsonDocument doc(2048);
       deserializeJson(doc, configFile);
 
       doc["mqtt_server"] = custom_mqtt_server.getValue();
@@ -174,15 +176,15 @@ public:
     if (SPIFFS.exists("/config.json"))
     {
       //file exists, reading and loading
-      Serial.println("reading config file");
+      Serial.println("tentative de lecture du fichier");
 
       File configFile = SPIFFS.open("/config.json", "r");
 
       if (configFile)
       {
-        Serial.println("opened config file");
+        Serial.println("fichier config.json ouvert avec succès!");
 
-        DynamicJsonDocument doc(1024);
+        DynamicJsonDocument doc(2048);
 
         auto error = deserializeJson(doc, configFile);
 
@@ -206,6 +208,11 @@ public:
           strcpy(mqttPort, doc["mqtt_port"]);
           strcpy(mqttUser, doc["mqtt_user"]);
           strcpy(mqttPassword, doc["mqtt_password"]);
+          Serial.println("VALEURS DANS LES VARIABLES MQTT DE L'OBJET");
+          Serial.println(mqttServer);
+          Serial.println(mqttPort);
+          Serial.println(mqttUser);
+          Serial.println(mqttPassword);
 
           Serial.println("Fichier Json Modifié");
         }
@@ -222,6 +229,7 @@ public:
   void ConfigurerMQTT()
   {
     int tentatives = 0;
+
     clientMQTT.setServer(mqttServer, atoi(mqttPort));
 
     while (!clientMQTT.connected() && tentatives < 3)
@@ -244,7 +252,6 @@ public:
         Serial.print("failed with state");
         Serial.print(clientMQTT.state());
         tentatives++;
-        delay(2000);
       }
     }
   }
@@ -332,6 +339,7 @@ StationMeteo stationMeteo(boutonStation, configurationStation, bme280Station, ec
 void setup()
 {
   Serial.begin(115200);
+  delay(10);
   stationMeteo.ParametrerAvantLancement();
 }
 
