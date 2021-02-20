@@ -2,6 +2,8 @@
 #include <FS.h> // Selon la doc doit être en premier sinon tout crash et brûle :D.
 #include <Arduino.h>
 
+// Include(s) pour requêtes API
+#include <HTTPClient.h>
 // Include(s) FS / JSON
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
@@ -252,6 +254,7 @@ public:
         Serial.print("failed with state");
         Serial.print(clientMQTT.state());
         tentatives++;
+        delay(1000);
       }
     }
   }
@@ -329,6 +332,20 @@ public:
     delay(2000);
     ecranLCDStation.clear();
   }
+
+  void Executer()
+  {
+    this->boutonStation.LireBoutonEtSetEtat();
+
+    if(this->boutonStation.GetEstAppuye())
+    {
+      this->configurationStation.ConfigurerReseauSurDemande();
+      this->boutonStation.SetEstAppuye(false);
+    }
+
+    PublierInfosMeteoMQTT();
+    AfficherInfosLCD();
+  }
 };
 
 Bouton boutonStation(18);
@@ -346,6 +363,5 @@ void setup()
 
 void loop()
 {
-  stationMeteo.PublierInfosMeteoMQTT();
-  stationMeteo.AfficherInfosLCD();
+  stationMeteo.Executer();
 }
