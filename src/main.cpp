@@ -4,6 +4,7 @@
 
 // Include(s) pour requêtes API
 #include <HTTPClient.h>
+
 // Include(s) FS / JSON
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
@@ -271,12 +272,20 @@ private:
   LiquidCrystal_I2C &ecranLCDStation;
   long tempsDerniereAlternanceLCD;
   bool togglePrintLCD = false;
-  const int delaiAlternanceEtPublication = 5000;
+  const int delaiEntreActions = 5000;
   long tempsDernierePublicationMQTT;
+  struct tm informationsTemps;
+  String valeurRequeteAPI;
+  String etatDeLaMeteo;
+  String UrlRequeteAPI;
+  const char * serveurNTP = "0.ca.pool.ntp.org";
+  const long ajustementSecondesESTvsGMT = -18000;
 
 public:
   StationMeteo(Bouton &p_boutonStation, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, LiquidCrystal_I2C &p_ecranLCD)
-      : boutonStation(p_boutonStation), configurationStation(p_configurationStation), bme280Station(p_bme280), ecranLCDStation(p_ecranLCD){};
+      : boutonStation(p_boutonStation), configurationStation(p_configurationStation), bme280Station(p_bme280), ecranLCDStation(p_ecranLCD), informationsTemps()
+  {   
+  };
 
   void ParametrerAvantLancement()
   {
@@ -289,14 +298,119 @@ public:
         ;
     }
 
+    configTime(ajustementSecondesESTvsGMT, 0, serveurNTP);
+
     ecranLCDStation.init();
     ecranLCDStation.backlight();
   }
 
+  void SetUrlAPI()
+  {
+    if (!getLocalTime(&informationsTemps))
+    {
+      Serial.println("Failed to obtain time");
+      return;
+    }
+    else
+    {
+      int anInt = informationsTemps.tm_year + 1900;
+      int jourInt = informationsTemps.tm_mday;
+      int moisInt = informationsTemps.tm_mon + 1;
+
+      String annee = String(anInt);
+      String mois = String(jourInt);
+      String jour = String(moisInt);
+
+      UrlRequeteAPI = "https://www.metaweather.com/api/location/3534/" + annee + "/" + jour + "/" + mois + "/";
+    }
+  }
+
+  void FaireRequeteHttpGet()
+  {
+    HTTPClient clientHTTP;
+
+    clientHTTP.begin(UrlRequeteAPI);
+
+    int codeReponseHTTP = clientHTTP.GET();
+
+    String resultatRequete = "{}";
+
+    if (codeReponseHTTP > 0)
+    {
+      Serial.print("Code de reponse HTTP: ");
+      Serial.println(codeReponseHTTP);
+      resultatRequete = clientHTTP.getString();
+    }
+    else
+    {
+      Serial.print("Code d'erreur: ");
+      Serial.println(codeReponseHTTP);
+    }
+
+    clientHTTP.end();
+
+    valeurRequeteAPI = resultatRequete;
+  }
+
+  void SetEtatDeLaMeteo()
+  {
+    StaticJsonDocument<1024> doc;
+
+    auto error = deserializeJson(doc, valeurRequeteAPI);
+
+    if (error)
+    {
+      Serial.print(F("deserializeJson() failed with code "));
+      Serial.println(error.c_str());
+      return;
+    }
+    else
+    {
+      const char *etatMeteoChar = doc[0]["weather_state_abbr"];
+      String etatDeLaMeteo = String(etatMeteoChar);
+    }
+  }
+
+  void AfficherSurMatrice8x8()
+  {
+
+    Serial.println("Etat de la météo selon les données les plus près de chez vous que nous avons:");
+    if (etatDeLaMeteo == "sn" || etatDeLaMeteo == "sl" || etatDeLaMeteo == "h")
+    {
+      Serial.println("Il neige/grêle");
+    }
+    else if (etatDeLaMeteo == "t" || etatDeLaMeteo == "hr" || etatDeLaMeteo == "lr" || etatDeLaMeteo == "s")
+    {
+      Serial.println("Il pleut et il y a possiblement des orages");
+    }
+    else if (etatDeLaMeteo == "hc" || etatDeLaMeteo == "lc")
+    {
+      Serial.println("C'est un peu ou très nuageux");
+    }
+    else if (etatDeLaMeteo == "c")
+    {
+      Serial.println("C'est très ensoleillé");
+    }
+  }
+
+  void MettreEtatMeteoAJour()
+  {
+    SetUrlAPI();
+    FaireRequeteHttpGet();
+    SetEtatDeLaMeteo();
+    AfficherSurMatrice8x8();
+  }
   void PublierInfosMeteoMQTT()
   {
-    if ((millis() - tempsDernierePublicationMQTT) >= delaiAlternanceEtPublication)
+    if ((millis() - tempsDernierePublicationMQTT) >= delaiEntreActions)
     {
+
+      if (!getLocalTime(&informationsTemps))
+    {
+      Serial.println("Failed to obtain time");
+      return;
+    }
+
       String temperature = String(bme280Station.readTemperature());
       String humidite = String(bme280Station.readHumidity());
       String pression = String(bme280Station.readPressure() / 100.0F);
@@ -313,8 +427,8 @@ public:
   }
 
   void AfficherInfosLCD()
-  {   
-    if ((millis() - tempsDerniereAlternanceLCD) < delaiAlternanceEtPublication / 2)
+  {
+    if ((millis() - tempsDerniereAlternanceLCD) < delaiEntreActions / 2)
     {
       if (!togglePrintLCD)
       {
@@ -331,7 +445,7 @@ public:
         togglePrintLCD = true;
       }
     }
-    else if((millis() - tempsDerniereAlternanceLCD) >= delaiAlternanceEtPublication / 2)
+    else if ((millis() - tempsDerniereAlternanceLCD) >= delaiEntreActions / 2)
     {
       if (togglePrintLCD)
       {
@@ -348,7 +462,7 @@ public:
         togglePrintLCD = false;
       }
     }
-    if(millis() - tempsDerniereAlternanceLCD > delaiAlternanceEtPublication)
+    if (millis() - tempsDerniereAlternanceLCD > delaiEntreActions)
     {
       tempsDerniereAlternanceLCD = millis();
     }
@@ -356,13 +470,15 @@ public:
 
   void Executer()
   {
+    Serial.println(&informationsTemps);
+
     this->boutonStation.LireBoutonEtSetEtat();
     if (this->boutonStation.GetEstAppuye())
     {
       this->configurationStation.ConfigurerReseauSurDemande();
       this->boutonStation.SetEstAppuye(false);
     }
-
+    MettreEtatMeteoAJour();
     PublierInfosMeteoMQTT();
     AfficherInfosLCD();
   }
