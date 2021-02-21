@@ -20,9 +20,6 @@
 // Include(s) Connexion Wifi
 #include <AccessPointCredentials.h>
 #include <WiFi.h>
-#include <Update.h>
-#include <WebServer.h>
-#include <DNSServer.h>
 #include <WifiManager.h>
 
 // Include(s) File Message
