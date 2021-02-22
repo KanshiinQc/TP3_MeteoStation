@@ -8,7 +8,7 @@
 // Include(s) FS / JSON
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
-// En le mettant dans la classe config, tout plantait a cause de la func... Je n'ai pas sur quoi faire.
+// En le mettant dans la classe config, tout plantait a cause de la func... Je n'ai pas trouvé quoi faire.
 bool doitSauvegarderConfig;
 
 // Include(s) Pour BME280
@@ -53,6 +53,7 @@ public:
     this->estAppuye = boutonEstAppuye;
   }
 };
+
 class ConfigurationStation
 {
 private:
@@ -73,8 +74,8 @@ private:
 public:
   //static bool &doitSauvegarderConfig;
   ConfigurationStation()
-      : wifiManager(), custom_mqtt_server("mqttServer", "Serveur MQTT", mqttServer, 15), custom_mqtt_port("mqttPort", "Port MQTT", mqttPort, 4),
-        custom_mqtt_username("mqttUser", "Username MQTT", mqttUser, 40), custom_mqtt_password("mqttPassword", "Password MQTT", mqttPassword, 100),
+      : wifiManager(), custom_mqtt_server("mqttServer", "Serveur MQTT", mqttServer, 15), custom_mqtt_port("mqttPort", "Port MQTT", mqttPort, 5),
+        custom_mqtt_username("mqttUser", "Username MQTT", mqttUser, 50), custom_mqtt_password("mqttPassword", "Password MQTT", mqttPassword, 100),
         clientWifi(), clientMQTT(clientWifi)
   {
     AjouterParametresWifiManagerCustom();
@@ -139,6 +140,8 @@ public:
   void ConfigurerReseauSurDemande()
   {
     wifiManager.startConfigPortal(ssid, password);
+    // J'ai essayé des delai pour enlever le probleme de WiFiManager Not Ready sans succès...
+    // delay(1000);
     SauvegarderConfigurationReseauDansFichier();
     AttribuerMqttAPartirFichierConfig();
     ConfigurerMQTT();
@@ -230,13 +233,13 @@ public:
 
   void ConfigurerMQTT()
   {
-    int tentatives = 0;
+    int nombretentatives = 1;
 
     clientMQTT.setServer(mqttServer, atoi(mqttPort));
 
-    while (!clientMQTT.connected() && tentatives < 4)
+    while (!clientMQTT.connected() && nombretentatives < 5)
     {
-      if (tentatives == 3)
+      if (nombretentatives == 4)
       {
         ConfigurerReseauSurDemande();
         SauvegarderConfigurationReseauDansFichier();
@@ -253,7 +256,7 @@ public:
       {
         Serial.print("failed with state");
         Serial.print(clientMQTT.state());
-        tentatives++;
+        nombretentatives++;
         delay(1000);
       }
     }
@@ -690,25 +693,26 @@ private:
   Adafruit_BME280 &bme280Station;
   LiquidCrystal_I2C &ecranLCDStation;
   AnimationLCD animationsMeteoLCD[4];
-  int tempsDepartAnimation;
+  int tempsDepartAnimationLCD;
   int imageActuelleAnimation;
-  long tempsDepartLCD;
+  long tempsDepartLoop;
   int etapeAlternanceLCD;
-  const int delaiDeBaseEntreActions = 2500;
-  long tempsDernierePublicationMQTT;
+  const int periodeDeTempsAction = 2500;
   struct tm informationsTemps;
   String valeurRequeteAPI;
   String etatDeLaMeteo;
   String UrlRequeteAPI;
-  int tempsDernierFetchApiMeteo;
   const char *serveurNTP = "0.ca.pool.ntp.org";
   const long ajustementSecondesESTvsGMT = -18000;
 
 public:
   StationMeteo(Bouton &p_boutonStation, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, LiquidCrystal_I2C &p_ecranLCD, AnimationLCD (&p_animationsLCD)[4])
-      : boutonStation(p_boutonStation), configurationStation(p_configurationStation), bme280Station(p_bme280), ecranLCDStation(p_ecranLCD), animationsMeteoLCD(p_animationsLCD), informationsTemps(){
-                                                                                                                                                                                     //memcpy(animationsMeteoLCD, p_animationsLCD, sizeof(animationsMeteoLCD));
-                                                                                                                                                                                 };
+      : boutonStation(p_boutonStation), configurationStation(p_configurationStation), bme280Station(p_bme280), ecranLCDStation(p_ecranLCD), animationsMeteoLCD(p_animationsLCD), informationsTemps(){};
+
+  void SetTempsDepartLoopAMaintenant()
+  {
+    this->tempsDepartLoop = millis();
+  }
 
   void ParametrerAvantLancement()
   {
@@ -797,39 +801,31 @@ public:
 
   void MettreEtatMeteoAJour()
   {
-    if ((millis() - tempsDernierFetchApiMeteo) >= delaiDeBaseEntreActions * 2)
-    {
-      SetUrlAPI();
-      FaireRequeteHttpGet();
-      SetEtatDeLaMeteo();
-      tempsDernierFetchApiMeteo = millis();
-    }
+    SetUrlAPI();
+    FaireRequeteHttpGet();
+    SetEtatDeLaMeteo();
   }
 
-  void PublierInfosMeteoMQTT()
+  void PublierInfosBarometreMQTT()
   {
-    if ((millis() - tempsDernierePublicationMQTT) >= delaiDeBaseEntreActions * 2)
+    if (!getLocalTime(&informationsTemps))
     {
-
-      if (!getLocalTime(&informationsTemps))
-      {
-        Serial.println("Failed to obtain time");
-        return;
-      }
-
-      String temperature = String(bme280Station.readTemperature());
-      String humidite = String(bme280Station.readHumidity());
-      String pression = String(bme280Station.readPressure() / 100.0F);
-      String altitude = String(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
-
-      this->configurationStation.GetClientMQTT().publish("stationMeteo/temperature", temperature.c_str());
-      this->configurationStation.GetClientMQTT().publish("stationMeteo/humidite", humidite.c_str());
-      this->configurationStation.GetClientMQTT().publish("stationMeteo/pression", pression.c_str());
-      this->configurationStation.GetClientMQTT().publish("stationMeteo/altitude", altitude.c_str());
-      // Selon la doc, la methode loop doit être lancé au 15 secondes maximum par défaut.
-      this->configurationStation.GetClientMQTT().loop();
-      tempsDernierePublicationMQTT = millis();
+      Serial.println("Failed to obtain time");
+      return;
     }
+
+    String temperature = String(bme280Station.readTemperature());
+    String humidite = String(bme280Station.readHumidity());
+    String pression = String(bme280Station.readPressure() / 100.0F);
+    String altitude = String(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
+
+    this->configurationStation.GetClientMQTT().publish("stationMeteo/temperature", temperature.c_str());
+    this->configurationStation.GetClientMQTT().publish("stationMeteo/humidite", humidite.c_str());
+    this->configurationStation.GetClientMQTT().publish("stationMeteo/pression", pression.c_str());
+    this->configurationStation.GetClientMQTT().publish("stationMeteo/altitude", altitude.c_str());
+
+    // Selon la doc, la methode loop doit être lancé au 15 secondes maximum par défaut.
+    this->configurationStation.GetClientMQTT().loop();
   }
 
   void AfficherAPModeLCD()
@@ -841,12 +837,45 @@ public:
     ecranLCDStation.print("Acces Active");
   }
 
-  void JouerAnimation(int index)
+  void AfficherTemperaturePressionLCD()
   {
-    if ((millis() - tempsDepartAnimation) % 1000 <= 1000 / 2 && imageActuelleAnimation == 0)
+    if (etapeAlternanceLCD == 0)
+    {
+      ecranLCDStation.clear();
+      ecranLCDStation.setCursor(0, 0);
+      ecranLCDStation.print("Temp= ");
+      ecranLCDStation.print(bme280Station.readTemperature());
+      ecranLCDStation.print(" *C");
+
+      ecranLCDStation.setCursor(0, 1);
+      ecranLCDStation.print("Press= ");
+      ecranLCDStation.print(bme280Station.readPressure() / 100.0F);
+      ecranLCDStation.print("hPa");
+      etapeAlternanceLCD++;
+    }
+  }
+
+  void AfficherAltitudeHumiditeLCD()
+  {
+    ecranLCDStation.clear();
+    ecranLCDStation.setCursor(0, 0);
+    ecranLCDStation.print("Alt= ");
+    ecranLCDStation.print(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
+    ecranLCDStation.print(" m");
+
+    ecranLCDStation.setCursor(0, 1);
+    ecranLCDStation.print("Hum= ");
+    ecranLCDStation.print(bme280Station.readHumidity());
+    ecranLCDStation.print(" %");
+  }
+
+  void AfficherAnimationLCD(int index)
+  {
+    if ((millis() - tempsDepartAnimationLCD) % 1000 <= 1000 / 2 && imageActuelleAnimation == 0)
     {
       imageActuelleAnimation = 1;
       ecranLCDStation.clear();
+      //for(int i  )
 
       ecranLCDStation.createChar(1, this->animationsMeteoLCD[index].image1[0]);
       ecranLCDStation.createChar(2, this->animationsMeteoLCD[index].image1[1]);
@@ -869,7 +898,7 @@ public:
       ecranLCDStation.write(6);
     }
 
-    else if((millis() - tempsDepartAnimation) % 1000 > 1000 / 2 && imageActuelleAnimation == 1)
+    else if ((millis() - tempsDepartAnimationLCD) % 1000 > 1000 / 2 && imageActuelleAnimation == 1)
     {
       imageActuelleAnimation = 0;
       imageActuelleAnimation++;
@@ -896,86 +925,30 @@ public:
     }
   }
 
-  void JouerAnimationLCDSelonMeteo()
+  void AfficherAnimationLCDSelonMeteo()
   {
     if (etatDeLaMeteo == "sn" || etatDeLaMeteo == "sl" || etatDeLaMeteo == "h")
     {
-      JouerAnimation(3);
+      AfficherAnimationLCD(3);
     }
     else if (etatDeLaMeteo == "t" || etatDeLaMeteo == "hr" || etatDeLaMeteo == "lr" || etatDeLaMeteo == "s")
     {
-      JouerAnimation(3);
+      AfficherAnimationLCD(3);
     }
     else if (etatDeLaMeteo == "hc" || etatDeLaMeteo == "lc")
     {
-      JouerAnimation(3);
+      AfficherAnimationLCD(3);
     }
     else if (etatDeLaMeteo == "c")
     {
-      JouerAnimation(3);
-    }
-  }
-
-  void AfficherInfosLCD()
-  {
-    if ((millis() - tempsDepartLCD) < delaiDeBaseEntreActions)
-    {
-      if (etapeAlternanceLCD == 0)
-      {
-        tempsDepartLCD = millis();
-        ecranLCDStation.clear();
-        ecranLCDStation.setCursor(0, 0);
-        ecranLCDStation.print("Temp= ");
-        ecranLCDStation.print(bme280Station.readTemperature());
-        ecranLCDStation.print(" *C");
-
-        ecranLCDStation.setCursor(0, 1);
-        ecranLCDStation.print("Press= ");
-        ecranLCDStation.print(bme280Station.readPressure() / 100.0F);
-        ecranLCDStation.print("hPa");
-        etapeAlternanceLCD++;
-      }
-    }
-    else if ((millis() - tempsDepartLCD) >= delaiDeBaseEntreActions && (millis() - tempsDepartLCD) < delaiDeBaseEntreActions * 2)
-    {
-      if (etapeAlternanceLCD == 1)
-      {
-        ecranLCDStation.clear();
-        ecranLCDStation.setCursor(0, 0);
-        ecranLCDStation.print("Alt= ");
-        ecranLCDStation.print(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
-        ecranLCDStation.print(" m");
-
-        ecranLCDStation.setCursor(0, 1);
-        ecranLCDStation.print("Hum= ");
-        ecranLCDStation.print(bme280Station.readHumidity());
-        ecranLCDStation.print(" %");
-        tempsDepartLCD = millis() + 2500;
-        etapeAlternanceLCD++;
-      }
-    }
-    else if (millis() - tempsDepartLCD > delaiDeBaseEntreActions * 2)
-    {
-      if (etapeAlternanceLCD == 2)
-      {
-        tempsDepartAnimation = millis();
-        tempsDepartLCD = millis() + 5000;
-        etapeAlternanceLCD++;
-      }
-      JouerAnimationLCDSelonMeteo();
-    }
-
-    if (millis() - tempsDepartLCD > delaiDeBaseEntreActions * 3)
-    {
-      tempsDepartLCD = millis();
-      etapeAlternanceLCD = 0;
-      imageActuelleAnimation = 0;
+      AfficherAnimationLCD(3);
     }
   }
 
   void Executer()
   {
     this->boutonStation.LireBoutonEtSetEtat();
+
     if (this->boutonStation.GetEstAppuye())
     {
       AfficherAPModeLCD();
@@ -984,25 +957,77 @@ public:
       ecranLCDStation.clear();
     }
 
-    MettreEtatMeteoAJour();
-    PublierInfosMeteoMQTT();
-    AfficherInfosLCD();
+    if ((millis() - tempsDepartLoop) < periodeDeTempsAction)
+    {
+
+      if (etapeAlternanceLCD == 0)
+      {
+        Serial.println(millis() - tempsDepartLoop);
+        Serial.println(etapeAlternanceLCD);
+
+        MettreEtatMeteoAJour();
+        AfficherTemperaturePressionLCD();
+        PublierInfosBarometreMQTT();
+        etapeAlternanceLCD++;
+        Serial.println(millis() - tempsDepartLoop);
+        Serial.println(etapeAlternanceLCD);
+      }
+    }
+
+    if ((millis() - tempsDepartLoop) >= periodeDeTempsAction && (millis() - tempsDepartLoop) < periodeDeTempsAction * 2)
+    {
+      if (etapeAlternanceLCD == 1)
+      {
+        Serial.println(millis() - tempsDepartLoop);
+        Serial.println(etapeAlternanceLCD);
+        AfficherAltitudeHumiditeLCD();
+        etapeAlternanceLCD++;
+        Serial.println(millis() - tempsDepartLoop);
+        Serial.println(etapeAlternanceLCD);
+      }
+    }
+
+    if ((millis() - tempsDepartLoop) > periodeDeTempsAction * 2)
+    {
+      if (etapeAlternanceLCD == 2)
+      {
+        Serial.println(millis() - tempsDepartLoop);
+        Serial.println(etapeAlternanceLCD);
+        tempsDepartAnimationLCD = millis();
+        etapeAlternanceLCD++;
+        Serial.println(millis() - tempsDepartLoop);
+        Serial.println(etapeAlternanceLCD);
+      }
+      AfficherAnimationLCDSelonMeteo();
+    }
+
+    if ((millis() - tempsDepartLoop) > periodeDeTempsAction * 3)
+    {
+      if (etapeAlternanceLCD == 3)
+      {
+        Serial.println(millis() - tempsDepartLoop);
+        Serial.println(etapeAlternanceLCD);
+        tempsDepartLoop = 0;
+        etapeAlternanceLCD = 0;
+        Serial.println(millis() - tempsDepartLoop);
+        Serial.println(etapeAlternanceLCD);
+      }
+    }
   }
 };
 
 Bouton boutonStation(18);
 ConfigurationStation configurationStation;
 Adafruit_BME280 bme280Station;
-LibrairieImagesLCD librairiesImagesLCD;
 
+LibrairieImagesLCD librairiesImagesLCD;
 AnimationLCD animationSoleil(librairiesImagesLCD.soleil1, librairiesImagesLCD.soleil2);
 AnimationLCD animationNuages(librairiesImagesLCD.nuage1, librairiesImagesLCD.nuage2);
 AnimationLCD animationPluie(librairiesImagesLCD.pluie1, librairiesImagesLCD.pluie2);
 AnimationLCD animationNeige(librairiesImagesLCD.neige1, librairiesImagesLCD.neige2);
-
 AnimationLCD animationsLCD[4]{animationSoleil, animationNuages, animationPluie, animationNeige};
-
 LiquidCrystal_I2C ecranLCDStation(0x27, 16, 2);
+
 StationMeteo stationMeteo(boutonStation, configurationStation, bme280Station, ecranLCDStation, animationsLCD);
 
 void setup()
@@ -1010,6 +1035,7 @@ void setup()
   Serial.begin(115200);
   delay(10);
   stationMeteo.ParametrerAvantLancement();
+  stationMeteo.SetTempsDepartLoopAMaintenant();
 }
 
 void loop()
