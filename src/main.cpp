@@ -702,6 +702,9 @@ private:
   String valeurRequeteAPI;
   String etatDeLaMeteo;
   String UrlRequeteAPI;
+  int dernierTempsFecthAPI;
+  //static TaskHandle_t tacheDedieeFetchAPI;
+  //const static BaseType_t deuxiemeCoeur = 1;
   const char *serveurNTP = "0.ca.pool.ntp.org";
   const long ajustementSecondesESTvsGMT = -18000;
 
@@ -709,6 +712,12 @@ public:
   StationMeteo(Bouton &p_boutonStation, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, LiquidCrystal_I2C &p_ecranLCD, AnimationLCD (&p_animationsLCD)[4])
       : boutonStation(p_boutonStation), configurationStation(p_configurationStation), bme280Station(p_bme280), ecranLCDStation(p_ecranLCD), animationsMeteoLCD(p_animationsLCD), informationsTemps(){};
 
+/*
+  void LierTaskHTTPAuDeuxiemeCoeur()
+  {
+    xTaskCreatePinnedToCore(this->FaireRequeteHttpGet(), "tacheDedieeFetchAPI", 30000, this, 1, &tacheDedieeFetchAPI, deuxiemeCoeur);
+  }
+*/
   void SetTempsDepartLoopAMaintenant()
   {
     this->tempsDepartLoop = millis();
@@ -726,9 +735,10 @@ public:
     }
 
     configTime(ajustementSecondesESTvsGMT, 0, serveurNTP);
-
     ecranLCDStation.init();
     ecranLCDStation.backlight();
+    MettreEtatMeteoAJour();
+    SetTempsDepartLoopAMaintenant(); 
   }
 
   void SetUrlAPI()
@@ -839,20 +849,16 @@ public:
 
   void AfficherTemperaturePressionLCD()
   {
-    if (etapeAlternanceLCD == 0)
-    {
-      ecranLCDStation.clear();
-      ecranLCDStation.setCursor(0, 0);
-      ecranLCDStation.print("Temp= ");
-      ecranLCDStation.print(bme280Station.readTemperature());
-      ecranLCDStation.print(" *C");
+    ecranLCDStation.clear();
+    ecranLCDStation.setCursor(0, 0);
+    ecranLCDStation.print("Temp= ");
+    ecranLCDStation.print(bme280Station.readTemperature());
+    ecranLCDStation.print(" *C");
 
-      ecranLCDStation.setCursor(0, 1);
-      ecranLCDStation.print("Press= ");
-      ecranLCDStation.print(bme280Station.readPressure() / 100.0F);
-      ecranLCDStation.print("hPa");
-      etapeAlternanceLCD++;
-    }
+    ecranLCDStation.setCursor(0, 1);
+    ecranLCDStation.print("Press= ");
+    ecranLCDStation.print(bme280Station.readPressure() / 100.0F);
+    ecranLCDStation.print("hPa");
   }
 
   void AfficherAltitudeHumiditeLCD()
@@ -947,8 +953,13 @@ public:
 
   void Executer()
   {
-    this->boutonStation.LireBoutonEtSetEtat();
+    if((millis() - dernierTempsFecthAPI) > 3600000)
+    {
+      MettreEtatMeteoAJour();
+      dernierTempsFecthAPI = millis();
+    }
 
+    this->boutonStation.LireBoutonEtSetEtat();
     if (this->boutonStation.GetEstAppuye())
     {
       AfficherAPModeLCD();
@@ -959,18 +970,11 @@ public:
 
     if ((millis() - tempsDepartLoop) < periodeDeTempsAction)
     {
-
       if (etapeAlternanceLCD == 0)
       {
-        Serial.println(millis() - tempsDepartLoop);
-        Serial.println(etapeAlternanceLCD);
-
-        MettreEtatMeteoAJour();
         AfficherTemperaturePressionLCD();
         PublierInfosBarometreMQTT();
         etapeAlternanceLCD++;
-        Serial.println(millis() - tempsDepartLoop);
-        Serial.println(etapeAlternanceLCD);
       }
     }
 
@@ -978,12 +982,8 @@ public:
     {
       if (etapeAlternanceLCD == 1)
       {
-        Serial.println(millis() - tempsDepartLoop);
-        Serial.println(etapeAlternanceLCD);
         AfficherAltitudeHumiditeLCD();
         etapeAlternanceLCD++;
-        Serial.println(millis() - tempsDepartLoop);
-        Serial.println(etapeAlternanceLCD);
       }
     }
 
@@ -991,27 +991,16 @@ public:
     {
       if (etapeAlternanceLCD == 2)
       {
-        Serial.println(millis() - tempsDepartLoop);
-        Serial.println(etapeAlternanceLCD);
         tempsDepartAnimationLCD = millis();
         etapeAlternanceLCD++;
-        Serial.println(millis() - tempsDepartLoop);
-        Serial.println(etapeAlternanceLCD);
       }
       AfficherAnimationLCDSelonMeteo();
     }
 
     if ((millis() - tempsDepartLoop) > periodeDeTempsAction * 3)
     {
-      if (etapeAlternanceLCD == 3)
-      {
-        Serial.println(millis() - tempsDepartLoop);
-        Serial.println(etapeAlternanceLCD);
-        tempsDepartLoop = 0;
+        tempsDepartLoop = millis();
         etapeAlternanceLCD = 0;
-        Serial.println(millis() - tempsDepartLoop);
-        Serial.println(etapeAlternanceLCD);
-      }
     }
   }
 };
@@ -1035,7 +1024,6 @@ void setup()
   Serial.begin(115200);
   delay(10);
   stationMeteo.ParametrerAvantLancement();
-  stationMeteo.SetTempsDepartLoopAMaintenant();
 }
 
 void loop()
