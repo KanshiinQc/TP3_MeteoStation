@@ -843,7 +843,7 @@ public:
 
   void JouerAnimation(int index)
   {
-    if ((millis() - tempsDepartAnimation) % 400 <= 400 / 2 && imageActuelleAnimation == 0)
+    if ((millis() - tempsDepartAnimation) % 1000 <= 1000 / 2 && imageActuelleAnimation == 0)
     {
       imageActuelleAnimation = 1;
       ecranLCDStation.clear();
@@ -869,7 +869,7 @@ public:
       ecranLCDStation.write(6);
     }
 
-    else if((millis() - tempsDepartAnimation) % 400 > 400 / 2 && imageActuelleAnimation == 1)
+    else if((millis() - tempsDepartAnimation) % 1000 > 1000 / 2 && imageActuelleAnimation == 1)
     {
       imageActuelleAnimation = 0;
       imageActuelleAnimation++;
@@ -922,6 +922,7 @@ public:
     {
       if (etapeAlternanceLCD == 0)
       {
+        tempsDepartLCD = millis();
         ecranLCDStation.clear();
         ecranLCDStation.setCursor(0, 0);
         ecranLCDStation.print("Temp= ");
@@ -949,6 +950,7 @@ public:
         ecranLCDStation.print("Hum= ");
         ecranLCDStation.print(bme280Station.readHumidity());
         ecranLCDStation.print(" %");
+        tempsDepartLCD = millis() + 2500;
         etapeAlternanceLCD++;
       }
     }
@@ -957,6 +959,7 @@ public:
       if (etapeAlternanceLCD == 2)
       {
         tempsDepartAnimation = millis();
+        tempsDepartLCD = millis() + 5000;
         etapeAlternanceLCD++;
       }
       JouerAnimationLCDSelonMeteo();
@@ -964,9 +967,9 @@ public:
 
     if (millis() - tempsDepartLCD > delaiDeBaseEntreActions * 3)
     {
+      tempsDepartLCD = millis();
       etapeAlternanceLCD = 0;
       imageActuelleAnimation = 0;
-      tempsDepartLCD = millis();
     }
   }
 
