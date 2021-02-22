@@ -8,6 +8,8 @@
 // Include(s) FS / JSON
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
+// En le mettant dans la classe config, tout plantait a cause de la func... Je n'ai pas sur quoi faire.
+bool doitSauvegarderConfig;
 
 // Include(s) Pour BME280
 #include <Adafruit_BME280.h>
@@ -25,7 +27,6 @@
 
 // Include(s) File Message
 #include <PubSubClient.h>
-bool doitSauvegarderConfig;
 
 class Bouton
 {
@@ -264,11 +265,422 @@ public:
   }
 };
 
-class DonneesDessinLCD
+class LibrairieImagesLCD
 {
-  private:
-    
-}
+public:
+  byte soleil1[6][8] = {
+      {B00000,
+       B00000,
+       B00000,
+       B00000,
+       B00010,
+       B00000,
+       B00000,
+       B00000},
+      {B01110,
+       B00000,
+       B00000,
+       B00000,
+       B00010,
+       B00000,
+       B00000,
+       B00000},
+      {B00000,
+       B00000,
+       B00100,
+       B00100,
+       B00100,
+       B00000,
+       B01110,
+       B11111},
+      {B11111,
+       B11111,
+       B01110,
+       B00000,
+       B00100,
+       B00100,
+       B00100,
+       B00000},
+      {B00000,
+       B00000,
+       B00000,
+       B00000,
+       B01000,
+       B00000,
+       B00000,
+       B00000},
+      {B01110,
+       B00000,
+       B00000,
+       B00000,
+       B01000,
+       B00000,
+       B00000,
+       B00000}};
+
+  byte soleil2[6][8] = {
+      {B00000,
+       B00000,
+       B00000,
+       B00100,
+       B00010,
+       B00000,
+       B00000,
+       B00000},
+      {B11110,
+       B00000,
+       B00000,
+       B00000,
+       B00010,
+       B00100,
+       B00000,
+       B00000},
+      {B00000,
+       B00100,
+       B00100,
+       B00100,
+       B00100,
+       B00000,
+       B01110,
+       B11111},
+      {B11111,
+       B11111,
+       B01110,
+       B00000,
+       B00100,
+       B00100,
+       B00100,
+       B00100},
+      {B00000,
+       B00000,
+       B00000,
+       B00100,
+       B01000,
+       B00000,
+       B00000,
+       B00000},
+      {B01111,
+       B00000,
+       B00000,
+       B01000,
+       B00100,
+       B00000,
+       B00000,
+       B00000}};
+
+  byte nuage1[6][8] = {
+      {B00000,
+       B00001,
+       B00011,
+       B00111,
+       B01111,
+       B11111,
+       B01111,
+       B00000},
+      {B00000,
+       B00000,
+       B00000,
+       B00000,
+       B00000,
+       B00001,
+       B00000,
+       B00000},
+      {B00000,
+       B11110,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B00000},
+      {B00000,
+       B00011,
+       B00111,
+       B01111,
+       B11111,
+       B11111,
+       B11111,
+       B00000},
+      {B00000,
+       B00000,
+       B00000,
+       B10000,
+       B10000,
+       B10000,
+       B00000,
+       B00000},
+      {B00000,
+       B11100,
+       B11110,
+       B11111,
+       B11111,
+       B11111,
+       B11110,
+       B00000}};
+
+  byte nuage2[6][8] = {
+      {B00000,
+       B00000,
+       B00001,
+       B00011,
+       B00111,
+       B01111,
+       B00111,
+       B00000},
+      {B00000,
+       B00000,
+       B00000,
+       B00000,
+       B00001,
+       B00011,
+       B00001,
+       B00000},
+      {B00000,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B00000},
+      {B00000,
+       B00111,
+       B01111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B00000},
+      {B00000,
+       B00000,
+       B10000,
+       B11000,
+       B11000,
+       B11000,
+       B10000,
+       B00000},
+      {B00000,
+       B11000,
+       B11100,
+       B11110,
+       B11110,
+       B11110,
+       B11100,
+       B00000}};
+
+  byte pluie1[6][8] = {
+      {B00000,
+       B00000,
+       B00000,
+       B00001,
+       B00011,
+       B00111,
+       B01111,
+       B01111},
+      {B00111,
+       B00000,
+       B01000,
+       B01000,
+       B00010,
+       B00010,
+       B00000,
+       B00000},
+      {B00000,
+       B01111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B11111},
+      {B11111,
+       B00000,
+       B10001,
+       B10001,
+       B00100,
+       B00100,
+       B00000,
+       B00000},
+      {B00000,
+       B10000,
+       B11000,
+       B11100,
+       B11110,
+       B11110,
+       B11110,
+       B11110},
+      {B11100,
+       B00000,
+       B00010,
+       B00010,
+       B01000,
+       B01000,
+       B00000,
+       B00000}};
+
+  byte pluie2[6][8] = {
+      {B00000,
+       B00000,
+       B00000,
+       B00001,
+       B00011,
+       B00111,
+       B01111,
+       B01111},
+      {B00111,
+       B00000,
+       B00010,
+       B00010,
+       B01000,
+       B01000,
+       B00000,
+       B00000},
+      {B00000,
+       B01111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B11111},
+      {B11111,
+       B00000,
+       B00100,
+       B00100,
+       B10001,
+       B10001,
+       B00000,
+       B00000},
+      {B00000,
+       B10000,
+       B11000,
+       B11100,
+       B11110,
+       B11110,
+       B11110,
+       B11110},
+      {B11100,
+       B00000,
+       B01000,
+       B01000,
+       B00010,
+       B00010,
+       B00000,
+       B00000}};
+
+  byte neige1[6][8] = {
+      {B00000,
+       B00000,
+       B00000,
+       B00001,
+       B00011,
+       B00111,
+       B01111,
+       B01111},
+      {B00111,
+       B00000,
+       B00100,
+       B01110,
+       B00100,
+       B00000,
+       B00001,
+       B00000},
+      {B00000,
+       B01111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B11111},
+      {B11111,
+       B00000,
+       B00001,
+       B00011,
+       B00001,
+       B10000,
+       B11000,
+       B10000},
+      {B00000,
+       B10000,
+       B11000,
+       B11100,
+       B11110,
+       B11110,
+       B11110,
+       B11110},
+      {B11100,
+       B00000,
+       B00000,
+       B10000,
+       B00000,
+       B00100,
+       B01110,
+       B00100}};
+
+  byte neige2[6][8] = {
+      {B00000,
+       B00000,
+       B00000,
+       B00001,
+       B00011,
+       B00111,
+       B01111,
+       B01111},
+      {B00111,
+       B00000,
+       B00000,
+       B00001,
+       B00000,
+       B00100,
+       B01110,
+       B00100},
+      {B00000,
+       B01111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B11111,
+       B11111},
+      {B11111,
+       B00000,
+       B10000,
+       B11000,
+       B10000,
+       B00001,
+       B00011,
+       B00001},
+      {B00000,
+       B10000,
+       B11000,
+       B11100,
+       B11110,
+       B11110,
+       B11110,
+       B11110},
+      {B11100,
+       B00000,
+       B00100,
+       B01110,
+       B00100,
+       B00000,
+       B10000,
+       B00000}};
+};
+
+class AnimationLCD
+{
+public:
+  byte image1[6][8];
+  byte image2[6][8];
+
+  AnimationLCD(byte (&p_image1)[6][8], byte (&p_image2)[6][8])
+  {
+    memcpy(image1, p_image1, sizeof(image1));
+    memcpy(image2, p_image2, sizeof(image2));
+  }
+};
 
 class StationMeteo
 {
@@ -277,7 +689,10 @@ private:
   ConfigurationStation &configurationStation;
   Adafruit_BME280 &bme280Station;
   LiquidCrystal_I2C &ecranLCDStation;
-  long tempsDerniereAlternanceLCD;
+  AnimationLCD animationsMeteoLCD[4];
+  int tempsDepartAnimation;
+  int imageActuelleAnimation;
+  long tempsDepartLCD;
   int etapeAlternanceLCD;
   const int delaiDeBaseEntreActions = 2500;
   long tempsDernierePublicationMQTT;
@@ -290,8 +705,10 @@ private:
   const long ajustementSecondesESTvsGMT = -18000;
 
 public:
-  StationMeteo(Bouton &p_boutonStation, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, LiquidCrystal_I2C &p_ecranLCD)
-      : boutonStation(p_boutonStation), configurationStation(p_configurationStation), bme280Station(p_bme280), ecranLCDStation(p_ecranLCD), informationsTemps(){};
+  StationMeteo(Bouton &p_boutonStation, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, LiquidCrystal_I2C &p_ecranLCD, AnimationLCD (&p_animationsLCD)[4])
+      : boutonStation(p_boutonStation), configurationStation(p_configurationStation), bme280Station(p_bme280), ecranLCDStation(p_ecranLCD), animationsMeteoLCD(p_animationsLCD), informationsTemps(){
+                                                                                                                                                                                     //memcpy(animationsMeteoLCD, p_animationsLCD, sizeof(animationsMeteoLCD));
+                                                                                                                                                                                 };
 
   void ParametrerAvantLancement()
   {
@@ -378,28 +795,6 @@ public:
     doc.clear();
   }
 
-  void AfficherSurMatrice8x8()
-  {
-
-    Serial.println("Etat de la météo selon les données les plus près de chez vous que nous avons:");
-    if (etatDeLaMeteo == "sn" || etatDeLaMeteo == "sl" || etatDeLaMeteo == "h")
-    {
-      Serial.println("Il neige/grêle");
-    }
-    else if (etatDeLaMeteo == "t" || etatDeLaMeteo == "hr" || etatDeLaMeteo == "lr" || etatDeLaMeteo == "s")
-    {
-      Serial.println("Il pleut et il y a possiblement des orages");
-    }
-    else if (etatDeLaMeteo == "hc" || etatDeLaMeteo == "lc")
-    {
-      Serial.println("C'est un peu ou très nuageux");
-    }
-    else if (etatDeLaMeteo == "c")
-    {
-      Serial.println("C'est très ensoleillé");
-    }
-  }
-
   void MettreEtatMeteoAJour()
   {
     if ((millis() - tempsDernierFetchApiMeteo) >= delaiDeBaseEntreActions * 2)
@@ -407,7 +802,6 @@ public:
       SetUrlAPI();
       FaireRequeteHttpGet();
       SetEtatDeLaMeteo();
-      AfficherSurMatrice8x8();
       tempsDernierFetchApiMeteo = millis();
     }
   }
@@ -446,9 +840,85 @@ public:
     ecranLCDStation.setCursor(0, 1);
     ecranLCDStation.print("Acces Active");
   }
+
+  void JouerAnimation(int index)
+  {
+    if ((millis() - tempsDepartAnimation) % 400 <= 400 / 2 && imageActuelleAnimation == 0)
+    {
+      imageActuelleAnimation = 1;
+      ecranLCDStation.clear();
+
+      ecranLCDStation.createChar(1, this->animationsMeteoLCD[index].image1[0]);
+      ecranLCDStation.createChar(2, this->animationsMeteoLCD[index].image1[1]);
+      ecranLCDStation.createChar(3, this->animationsMeteoLCD[index].image1[2]);
+      ecranLCDStation.createChar(4, this->animationsMeteoLCD[index].image1[3]);
+      ecranLCDStation.createChar(5, this->animationsMeteoLCD[index].image1[4]);
+      ecranLCDStation.createChar(6, this->animationsMeteoLCD[index].image1[5]);
+
+      ecranLCDStation.setCursor(0, 0);
+      ecranLCDStation.write(1);
+      ecranLCDStation.setCursor(0, 1);
+      ecranLCDStation.write(2);
+      ecranLCDStation.setCursor(1, 0);
+      ecranLCDStation.write(3);
+      ecranLCDStation.setCursor(1, 1);
+      ecranLCDStation.write(4);
+      ecranLCDStation.setCursor(2, 0);
+      ecranLCDStation.write(5);
+      ecranLCDStation.setCursor(2, 1);
+      ecranLCDStation.write(6);
+    }
+
+    else if((millis() - tempsDepartAnimation) % 400 > 400 / 2 && imageActuelleAnimation == 1)
+    {
+      imageActuelleAnimation = 0;
+      imageActuelleAnimation++;
+      ecranLCDStation.clear();
+      ecranLCDStation.createChar(1, this->animationsMeteoLCD[index].image2[0]);
+      ecranLCDStation.createChar(2, this->animationsMeteoLCD[index].image2[1]);
+      ecranLCDStation.createChar(3, this->animationsMeteoLCD[index].image2[2]);
+      ecranLCDStation.createChar(4, this->animationsMeteoLCD[index].image2[3]);
+      ecranLCDStation.createChar(5, this->animationsMeteoLCD[index].image2[4]);
+      ecranLCDStation.createChar(6, this->animationsMeteoLCD[index].image2[5]);
+
+      ecranLCDStation.setCursor(0, 0);
+      ecranLCDStation.write(1);
+      ecranLCDStation.setCursor(0, 1);
+      ecranLCDStation.write(2);
+      ecranLCDStation.setCursor(1, 0);
+      ecranLCDStation.write(3);
+      ecranLCDStation.setCursor(1, 1);
+      ecranLCDStation.write(4);
+      ecranLCDStation.setCursor(2, 0);
+      ecranLCDStation.write(5);
+      ecranLCDStation.setCursor(2, 1);
+      ecranLCDStation.write(6);
+    }
+  }
+
+  void JouerAnimationLCDSelonMeteo()
+  {
+    if (etatDeLaMeteo == "sn" || etatDeLaMeteo == "sl" || etatDeLaMeteo == "h")
+    {
+      JouerAnimation(3);
+    }
+    else if (etatDeLaMeteo == "t" || etatDeLaMeteo == "hr" || etatDeLaMeteo == "lr" || etatDeLaMeteo == "s")
+    {
+      JouerAnimation(3);
+    }
+    else if (etatDeLaMeteo == "hc" || etatDeLaMeteo == "lc")
+    {
+      JouerAnimation(3);
+    }
+    else if (etatDeLaMeteo == "c")
+    {
+      JouerAnimation(3);
+    }
+  }
+
   void AfficherInfosLCD()
   {
-    if ((millis() - tempsDerniereAlternanceLCD) < delaiDeBaseEntreActions)
+    if ((millis() - tempsDepartLCD) < delaiDeBaseEntreActions)
     {
       if (etapeAlternanceLCD == 0)
       {
@@ -465,7 +935,7 @@ public:
         etapeAlternanceLCD++;
       }
     }
-    else if ((millis() - tempsDerniereAlternanceLCD) >= delaiDeBaseEntreActions && (millis() - tempsDerniereAlternanceLCD) < delaiDeBaseEntreActions * 2)
+    else if ((millis() - tempsDepartLCD) >= delaiDeBaseEntreActions && (millis() - tempsDepartLCD) < delaiDeBaseEntreActions * 2)
     {
       if (etapeAlternanceLCD == 1)
       {
@@ -482,100 +952,21 @@ public:
         etapeAlternanceLCD++;
       }
     }
-    else if (millis() - tempsDerniereAlternanceLCD > delaiDeBaseEntreActions * 2)
+    else if (millis() - tempsDepartLCD > delaiDeBaseEntreActions * 2)
     {
       if (etapeAlternanceLCD == 2)
       {
-        byte sun1[] = {
-            B00000,
-            B00000,
-            B00000,
-            B00000,
-            B00010,
-            B00000,
-            B00000,
-            B00000};
-
-        byte sun2[] = {
-            B01110,
-            B00000,
-            B00000,
-            B00000,
-            B00010,
-            B00000,
-            B00000,
-            B00000};
-
-        byte sun3[] = {
-            B00000,
-            B00000,
-            B00100,
-            B00100,
-            B00100,
-            B00000,
-            B01110,
-            B11111};
-
-        byte sun4[] = {
-            B11111,
-            B11111,
-            B01110,
-            B00000,
-            B00100,
-            B00100,
-            B00100,
-            B00000};
-
-        byte sun5[] = {
-            B00000,
-            B00000,
-            B00000,
-            B00000,
-            B01000,
-            B00000,
-            B00000,
-            B00000};
-
-        byte sun6[] = {
-            B01110,
-            B00000,
-            B00000,
-            B00000,
-            B01000,
-            B00000,
-            B00000,
-            B00000};
-
-        ecranLCDStation.clear();
-
-        ecranLCDStation.createChar(1, sun1);
-        ecranLCDStation.createChar(2, sun2);
-        ecranLCDStation.createChar(3, sun3);
-        ecranLCDStation.createChar(4, sun4);
-        ecranLCDStation.createChar(5, sun5);
-        ecranLCDStation.createChar(6, sun6);
-
-        ecranLCDStation.setCursor(0, 0);
-        ecranLCDStation.write(1);
-        ecranLCDStation.setCursor(0, 1);
-        ecranLCDStation.write(2);
-        ecranLCDStation.setCursor(1, 0);
-        ecranLCDStation.write(3);
-        ecranLCDStation.setCursor(1, 1);
-        ecranLCDStation.write(4);
-        ecranLCDStation.setCursor(2, 0);
-        ecranLCDStation.write(5);
-        ecranLCDStation.setCursor(2, 1);
-        ecranLCDStation.write(6);
-
+        tempsDepartAnimation = millis();
         etapeAlternanceLCD++;
       }
+      JouerAnimationLCDSelonMeteo();
     }
 
-    if (millis() - tempsDerniereAlternanceLCD > delaiDeBaseEntreActions * 3)
+    if (millis() - tempsDepartLCD > delaiDeBaseEntreActions * 3)
     {
       etapeAlternanceLCD = 0;
-      tempsDerniereAlternanceLCD = millis();
+      imageActuelleAnimation = 0;
+      tempsDepartLCD = millis();
     }
   }
 
@@ -599,8 +990,17 @@ public:
 Bouton boutonStation(18);
 ConfigurationStation configurationStation;
 Adafruit_BME280 bme280Station;
+LibrairieImagesLCD librairiesImagesLCD;
+
+AnimationLCD animationSoleil(librairiesImagesLCD.soleil1, librairiesImagesLCD.soleil2);
+AnimationLCD animationNuages(librairiesImagesLCD.nuage1, librairiesImagesLCD.nuage2);
+AnimationLCD animationPluie(librairiesImagesLCD.pluie1, librairiesImagesLCD.pluie2);
+AnimationLCD animationNeige(librairiesImagesLCD.neige1, librairiesImagesLCD.neige2);
+
+AnimationLCD animationsLCD[4]{animationSoleil, animationNuages, animationPluie, animationNeige};
+
 LiquidCrystal_I2C ecranLCDStation(0x27, 16, 2);
-StationMeteo stationMeteo(boutonStation, configurationStation, bme280Station, ecranLCDStation);
+StationMeteo stationMeteo(boutonStation, configurationStation, bme280Station, ecranLCDStation, animationsLCD);
 
 void setup()
 {
