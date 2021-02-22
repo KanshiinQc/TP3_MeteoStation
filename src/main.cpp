@@ -691,13 +691,17 @@ private:
   Bouton &boutonStation;
   ConfigurationStation &configurationStation;
   Adafruit_BME280 &bme280Station;
+  float bmeValeurTemperature;
+  float bmeValeurHumidite;
+  float bmeValeurPression;
+  float bmeValeurAltitude;
   LiquidCrystal_I2C &ecranLCDStation;
   AnimationLCD animationsMeteoLCD[4];
   int tempsDepartAnimationLCD;
   int imageActuelleAnimation;
   long tempsDepartLoop;
   int etapeAlternanceLCD;
-  const int periodeDeTempsAction = 2500;
+  const int periodeDeTempsAction = 4000;
   struct tm informationsTemps;
   String valeurRequeteAPI;
   String etatDeLaMeteo;
@@ -710,14 +714,15 @@ private:
 
 public:
   StationMeteo(Bouton &p_boutonStation, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, LiquidCrystal_I2C &p_ecranLCD, AnimationLCD (&p_animationsLCD)[4])
-      : boutonStation(p_boutonStation), configurationStation(p_configurationStation), bme280Station(p_bme280), ecranLCDStation(p_ecranLCD), animationsMeteoLCD(p_animationsLCD), informationsTemps(){};
+      : boutonStation(p_boutonStation), configurationStation(p_configurationStation), bme280Station(p_bme280),
+        ecranLCDStation(p_ecranLCD), animationsMeteoLCD(p_animationsLCD), informationsTemps(){};
 
-/*
+  /*
   void LierTaskHTTPAuDeuxiemeCoeur()
   {
     xTaskCreatePinnedToCore(this->FaireRequeteHttpGet(), "tacheDedieeFetchAPI", 30000, this, 1, &tacheDedieeFetchAPI, deuxiemeCoeur);
   }
-*/
+  */
   void SetTempsDepartLoopAMaintenant()
   {
     this->tempsDepartLoop = millis();
@@ -738,7 +743,7 @@ public:
     ecranLCDStation.init();
     ecranLCDStation.backlight();
     MettreEtatMeteoAJour();
-    SetTempsDepartLoopAMaintenant(); 
+    SetTempsDepartLoopAMaintenant();
   }
 
   void SetUrlAPI()
@@ -816,6 +821,14 @@ public:
     SetEtatDeLaMeteo();
   }
 
+  void LireDonneesBarometre()
+  {
+    bmeValeurTemperature = bme280Station.readTemperature();
+    bmeValeurHumidite = bme280Station.readHumidity();
+    bmeValeurPression = bme280Station.readPressure() / 100;
+    bmeValeurAltitude = bme280Station.readAltitude(PRESSION_NIVEAU_MER);
+  }
+
   void PublierInfosBarometreMQTT()
   {
     if (!getLocalTime(&informationsTemps))
@@ -824,10 +837,10 @@ public:
       return;
     }
 
-    String temperature = String(bme280Station.readTemperature());
-    String humidite = String(bme280Station.readHumidity());
-    String pression = String(bme280Station.readPressure() / 100.0F);
-    String altitude = String(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
+    String temperature = String(bmeValeurTemperature);
+    String humidite = String(bmeValeurHumidite);
+    String pression = String(bmeValeurPression);
+    String altitude = String(bmeValeurAltitude);
 
     this->configurationStation.GetClientMQTT().publish("stationMeteo/temperature", temperature.c_str());
     this->configurationStation.GetClientMQTT().publish("stationMeteo/humidite", humidite.c_str());
@@ -852,12 +865,12 @@ public:
     ecranLCDStation.clear();
     ecranLCDStation.setCursor(0, 0);
     ecranLCDStation.print("Temp= ");
-    ecranLCDStation.print(bme280Station.readTemperature());
+    ecranLCDStation.print(bmeValeurTemperature);
     ecranLCDStation.print(" *C");
 
     ecranLCDStation.setCursor(0, 1);
     ecranLCDStation.print("Press= ");
-    ecranLCDStation.print(bme280Station.readPressure() / 100.0F);
+    ecranLCDStation.print(bmeValeurPression);
     ecranLCDStation.print("hPa");
   }
 
@@ -866,68 +879,75 @@ public:
     ecranLCDStation.clear();
     ecranLCDStation.setCursor(0, 0);
     ecranLCDStation.print("Alt= ");
-    ecranLCDStation.print(bme280Station.readAltitude(PRESSION_NIVEAU_MER));
+    ecranLCDStation.print(bmeValeurAltitude);
     ecranLCDStation.print(" m");
 
     ecranLCDStation.setCursor(0, 1);
     ecranLCDStation.print("Hum= ");
-    ecranLCDStation.print(bme280Station.readHumidity());
+    ecranLCDStation.print(bmeValeurHumidite);
     ecranLCDStation.print(" %");
   }
 
   void AfficherAnimationLCD(int index)
   {
-    if ((millis() - tempsDepartAnimationLCD) % 1000 <= 1000 / 2 && imageActuelleAnimation == 0)
+    if ((millis() - tempsDepartAnimationLCD) % (periodeDeTempsAction / 3) <= periodeDeTempsAction / 6)
     {
-      imageActuelleAnimation = 1;
-      ecranLCDStation.clear();
-      //for(int i  )
+      if (imageActuelleAnimation == 0)
+      {
+        ecranLCDStation.clear();
 
-      ecranLCDStation.createChar(1, this->animationsMeteoLCD[index].image1[0]);
-      ecranLCDStation.createChar(2, this->animationsMeteoLCD[index].image1[1]);
-      ecranLCDStation.createChar(3, this->animationsMeteoLCD[index].image1[2]);
-      ecranLCDStation.createChar(4, this->animationsMeteoLCD[index].image1[3]);
-      ecranLCDStation.createChar(5, this->animationsMeteoLCD[index].image1[4]);
-      ecranLCDStation.createChar(6, this->animationsMeteoLCD[index].image1[5]);
+        ecranLCDStation.createChar(1, this->animationsMeteoLCD[index].image1[0]);
+        ecranLCDStation.createChar(2, this->animationsMeteoLCD[index].image1[1]);
+        ecranLCDStation.createChar(3, this->animationsMeteoLCD[index].image1[2]);
+        ecranLCDStation.createChar(4, this->animationsMeteoLCD[index].image1[3]);
+        ecranLCDStation.createChar(5, this->animationsMeteoLCD[index].image1[4]);
+        ecranLCDStation.createChar(6, this->animationsMeteoLCD[index].image1[5]);
 
-      ecranLCDStation.setCursor(0, 0);
-      ecranLCDStation.write(1);
-      ecranLCDStation.setCursor(0, 1);
-      ecranLCDStation.write(2);
-      ecranLCDStation.setCursor(1, 0);
-      ecranLCDStation.write(3);
-      ecranLCDStation.setCursor(1, 1);
-      ecranLCDStation.write(4);
-      ecranLCDStation.setCursor(2, 0);
-      ecranLCDStation.write(5);
-      ecranLCDStation.setCursor(2, 1);
-      ecranLCDStation.write(6);
+        ecranLCDStation.setCursor(0, 0);
+        ecranLCDStation.write(1);
+        ecranLCDStation.setCursor(0, 1);
+        ecranLCDStation.write(2);
+        ecranLCDStation.setCursor(1, 0);
+        ecranLCDStation.write(3);
+        ecranLCDStation.setCursor(1, 1);
+        ecranLCDStation.write(4);
+        ecranLCDStation.setCursor(2, 0);
+        ecranLCDStation.write(5);
+        ecranLCDStation.setCursor(2, 1);
+        ecranLCDStation.write(6);
+        imageActuelleAnimation = 1;
+      }
     }
 
-    else if ((millis() - tempsDepartAnimationLCD) % 1000 > 1000 / 2 && imageActuelleAnimation == 1)
+    else if ((millis() - tempsDepartAnimationLCD) % (periodeDeTempsAction / 3) > periodeDeTempsAction / 6)
     {
-      imageActuelleAnimation = 0;
-      imageActuelleAnimation++;
-      ecranLCDStation.clear();
-      ecranLCDStation.createChar(1, this->animationsMeteoLCD[index].image2[0]);
-      ecranLCDStation.createChar(2, this->animationsMeteoLCD[index].image2[1]);
-      ecranLCDStation.createChar(3, this->animationsMeteoLCD[index].image2[2]);
-      ecranLCDStation.createChar(4, this->animationsMeteoLCD[index].image2[3]);
-      ecranLCDStation.createChar(5, this->animationsMeteoLCD[index].image2[4]);
-      ecranLCDStation.createChar(6, this->animationsMeteoLCD[index].image2[5]);
+      if (imageActuelleAnimation == 1)
+      {
 
-      ecranLCDStation.setCursor(0, 0);
-      ecranLCDStation.write(1);
-      ecranLCDStation.setCursor(0, 1);
-      ecranLCDStation.write(2);
-      ecranLCDStation.setCursor(1, 0);
-      ecranLCDStation.write(3);
-      ecranLCDStation.setCursor(1, 1);
-      ecranLCDStation.write(4);
-      ecranLCDStation.setCursor(2, 0);
-      ecranLCDStation.write(5);
-      ecranLCDStation.setCursor(2, 1);
-      ecranLCDStation.write(6);
+        ecranLCDStation.clear();
+
+        ecranLCDStation.createChar(1, this->animationsMeteoLCD[index].image2[0]);
+        ecranLCDStation.createChar(2, this->animationsMeteoLCD[index].image2[1]);
+        ecranLCDStation.createChar(3, this->animationsMeteoLCD[index].image2[2]);
+        ecranLCDStation.createChar(4, this->animationsMeteoLCD[index].image2[3]);
+        ecranLCDStation.createChar(5, this->animationsMeteoLCD[index].image2[4]);
+        ecranLCDStation.createChar(6, this->animationsMeteoLCD[index].image2[5]);
+
+        ecranLCDStation.setCursor(0, 0);
+        ecranLCDStation.write(1);
+        ecranLCDStation.setCursor(0, 1);
+        ecranLCDStation.write(2);
+        ecranLCDStation.setCursor(1, 0);
+        ecranLCDStation.write(3);
+        ecranLCDStation.setCursor(1, 1);
+        ecranLCDStation.write(4);
+        ecranLCDStation.setCursor(2, 0);
+        ecranLCDStation.write(5);
+        ecranLCDStation.setCursor(2, 1);
+        ecranLCDStation.write(6);
+
+        imageActuelleAnimation = 0;
+      }
     }
   }
 
@@ -935,25 +955,25 @@ public:
   {
     if (etatDeLaMeteo == "sn" || etatDeLaMeteo == "sl" || etatDeLaMeteo == "h")
     {
-      AfficherAnimationLCD(3);
+      AfficherAnimationLCD(1);
     }
     else if (etatDeLaMeteo == "t" || etatDeLaMeteo == "hr" || etatDeLaMeteo == "lr" || etatDeLaMeteo == "s")
     {
-      AfficherAnimationLCD(3);
+      AfficherAnimationLCD(1);
     }
     else if (etatDeLaMeteo == "hc" || etatDeLaMeteo == "lc")
     {
-      AfficherAnimationLCD(3);
+      AfficherAnimationLCD(1);
     }
     else if (etatDeLaMeteo == "c")
     {
-      AfficherAnimationLCD(3);
+      AfficherAnimationLCD(1);
     }
   }
 
   void Executer()
   {
-    if((millis() - dernierTempsFecthAPI) > 3600000)
+    if ((millis() - dernierTempsFecthAPI) > 3600000)
     {
       MettreEtatMeteoAJour();
       dernierTempsFecthAPI = millis();
@@ -972,6 +992,8 @@ public:
     {
       if (etapeAlternanceLCD == 0)
       {
+        Serial.println(millis() - tempsDepartLoop);
+        LireDonneesBarometre();
         AfficherTemperaturePressionLCD();
         PublierInfosBarometreMQTT();
         etapeAlternanceLCD++;
@@ -982,6 +1004,7 @@ public:
     {
       if (etapeAlternanceLCD == 1)
       {
+        Serial.println(millis() - tempsDepartLoop);
         AfficherAltitudeHumiditeLCD();
         etapeAlternanceLCD++;
       }
@@ -991,6 +1014,7 @@ public:
     {
       if (etapeAlternanceLCD == 2)
       {
+        Serial.println(millis() - tempsDepartLoop);
         tempsDepartAnimationLCD = millis();
         etapeAlternanceLCD++;
       }
@@ -999,8 +1023,9 @@ public:
 
     if ((millis() - tempsDepartLoop) > periodeDeTempsAction * 3)
     {
-        tempsDepartLoop = millis();
-        etapeAlternanceLCD = 0;
+      Serial.println(millis() - tempsDepartLoop);
+      tempsDepartLoop = millis();
+      etapeAlternanceLCD = 0;
     }
   }
 };
