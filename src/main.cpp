@@ -90,8 +90,9 @@ public:
 
   void ParametrerAvantLancement()
   {
+    wifiManager.setWiFiAutoReconnect(true);
     wifiManager.setSaveConfigCallback(SauvegarderConfigCallback);
-    wifiManager.setConfigPortalTimeout(20);
+    wifiManager.setConfigPortalTimeout(180);
     MonterSystemeDeFichier();
     TenterConnexionAuWifi();
     SauvegarderConfigurationReseauDansFichier();
@@ -222,10 +223,6 @@ public:
           strcpy(mqttPort, doc["mqtt_port"]);
           strcpy(mqttUser, doc["mqtt_user"]);
           strcpy(mqttPassword, doc["mqtt_password"]);
-
-          Serial.println("VALEURS DANS LES VARIABLES MQTT DE L'OBJET");
-
-          Serial.println("Fichier Json Modifié");
         }
 
         configFile.close();
@@ -253,15 +250,15 @@ public:
         AttribuerMqttAPartirFichierConfig();
       }
 
-      Serial.println("Connecting to MQTT...");
+      Serial.println("Connexion en cours a MQTT");
 
       if (clientMQTT.connect("ESP32Client", mqttUser, mqttPassword))
       {
-        Serial.println("connected");
+        Serial.println("connecté!");
       }
       else
       {
-        Serial.print("failed with state");
+        Serial.print("echec avec code");
         Serial.print(clientMQTT.state());
         nombretentatives++;
         delay(1000);
@@ -1053,6 +1050,7 @@ public:
       if (etapeActuelleLoopProgramme == 0)
       {
         Serial.println(millis() - tempsDepartLoop);
+        // Ceci gère les déconnexion au Wifi très courtes. Si c'est plus long, l'AP est lancé. 
         this->configurationStation.ReconnecterMQTTSiDeconnecter();
         LireDonneesBarometre();
         ecranLCDAnime.AfficherTemperaturePressionLCD(this->bmeValeurTemperature, this->bmeValeurPression);
@@ -1085,7 +1083,10 @@ public:
         ecranLCDAnime.SetTempsDepartAnimation(millis());
         etapeActuelleLoopProgramme++;
       }
-      this->ecranLCDAnime.AfficherAnimationLCDSelonMeteo(this->rapporteurEtatMeteo.GetEtatMeteo(), tempsParAction);
+      if(etapeActuelleLoopProgramme < 4)
+      {
+        this->ecranLCDAnime.AfficherAnimationLCDSelonMeteo(this->rapporteurEtatMeteo.GetEtatMeteo(), tempsParAction);
+      }
     }
   }
 
