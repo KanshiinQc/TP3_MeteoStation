@@ -90,6 +90,7 @@ public:
   void ParametrerAvantLancement()
   {
     wifiManager.setSaveConfigCallback(SauvegarderConfigCallback);
+    wifiManager.setConfigPortalTimeout(20);
     MonterSystemeDeFichier();
     TenterConnexionAuWifi();
     SauvegarderConfigurationReseauDansFichier();
@@ -108,6 +109,16 @@ public:
       Serial.print("connecte a:");
       Serial.println(ssid);
     }
+  }
+
+  void ConfigurerReseauSurDemande()
+  {
+    wifiManager.startConfigPortal(ssid, password);
+    // J'ai essayé des delai pour enlever le probleme de WiFiManager Not Ready sans succès...
+    // delay(1000);
+    SauvegarderConfigurationReseauDansFichier();
+    AttribuerMqttAPartirFichierConfig();
+    ConfigurerMQTT();
   }
 
   void AjouterParametresWifiManagerCustom()
@@ -137,16 +148,6 @@ public:
     }
   }
 
-  void ConfigurerReseauSurDemande()
-  {
-    wifiManager.startConfigPortal(ssid, password);
-    // J'ai essayé des delai pour enlever le probleme de WiFiManager Not Ready sans succès...
-    // delay(1000);
-    SauvegarderConfigurationReseauDansFichier();
-    AttribuerMqttAPartirFichierConfig();
-    ConfigurerMQTT();
-  }
-
   void SauvegarderConfigurationReseauDansFichier()
   {
     if (doitSauvegarderConfig)
@@ -164,7 +165,6 @@ public:
       doc["mqtt_server"] = custom_mqtt_server.getValue();
       doc["mqtt_port"] = custom_mqtt_port.getValue();
       doc["mqtt_user"] = custom_mqtt_username.getValue();
-      ;
       doc["mqtt_password"] = custom_mqtt_password.getValue();
 
       Serial.println("Sauvegarde de la configuration");
@@ -212,11 +212,8 @@ public:
           strcpy(mqttPort, doc["mqtt_port"]);
           strcpy(mqttUser, doc["mqtt_user"]);
           strcpy(mqttPassword, doc["mqtt_password"]);
+
           Serial.println("VALEURS DANS LES VARIABLES MQTT DE L'OBJET");
-          Serial.println(mqttServer);
-          Serial.println(mqttPort);
-          Serial.println(mqttUser);
-          Serial.println(mqttPassword);
 
           Serial.println("Fichier Json Modifié");
         }
@@ -688,33 +685,39 @@ public:
 class StationMeteo
 {
 private:
-  Bouton &boutonStation;
+  Bouton &boutonPortailWifi;
+
   ConfigurationStation &configurationStation;
+
   Adafruit_BME280 &bme280Station;
   float bmeValeurTemperature;
   float bmeValeurHumidite;
   float bmeValeurPression;
   float bmeValeurAltitude;
+
   LiquidCrystal_I2C &ecranLCDStation;
   AnimationLCD animationsMeteoLCD[4];
   int tempsDepartAnimationLCD;
   int imageActuelleAnimation;
+
   long tempsDepartLoop;
-  int etapeAlternanceLCD;
-  const int periodeDeTempsAction = 4000;
-  struct tm informationsTemps;
-  String valeurRequeteAPI;
-  String etatDeLaMeteo;
-  String UrlRequeteAPI;
-  int dernierTempsFecthAPI;
-  //static TaskHandle_t tacheDedieeFetchAPI;
-  //const static BaseType_t deuxiemeCoeur = 1;
+  int etapeActuelleLoopProgramme;
+  const int tempsParAction = 4000;
+
   const char *serveurNTP = "0.ca.pool.ntp.org";
   const long ajustementSecondesESTvsGMT = -18000;
+  struct tm informationsTemps;
+  String valeurRequeteAPI;
+  String UrlRequeteAPI;
+  int dernierTempsFecthAPI;
+  String etatDeLaMeteo;
+
+  //static TaskHandle_t tacheDedieeFetchAPI;
+  //const static BaseType_t deuxiemeCoeur = 1;
 
 public:
-  StationMeteo(Bouton &p_boutonStation, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, LiquidCrystal_I2C &p_ecranLCD, AnimationLCD (&p_animationsLCD)[4])
-      : boutonStation(p_boutonStation), configurationStation(p_configurationStation), bme280Station(p_bme280),
+  StationMeteo(Bouton &p_boutonPortailWifi, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, LiquidCrystal_I2C &p_ecranLCD, AnimationLCD (&p_animationsLCD)[4])
+      : boutonPortailWifi(p_boutonPortailWifi), configurationStation(p_configurationStation), bme280Station(p_bme280),
         ecranLCDStation(p_ecranLCD), animationsMeteoLCD(p_animationsLCD), informationsTemps(){};
 
   /*
@@ -890,7 +893,7 @@ public:
 
   void AfficherAnimationLCD(int index)
   {
-    if ((millis() - tempsDepartAnimationLCD) % (periodeDeTempsAction / 3) <= periodeDeTempsAction / 6)
+    if ((millis() - tempsDepartAnimationLCD) % (tempsParAction / 3) <= tempsParAction / 6)
     {
       if (imageActuelleAnimation == 0)
       {
@@ -919,7 +922,7 @@ public:
       }
     }
 
-    else if ((millis() - tempsDepartAnimationLCD) % (periodeDeTempsAction / 3) > periodeDeTempsAction / 6)
+    else if ((millis() - tempsDepartAnimationLCD) % (tempsParAction / 3) > tempsParAction / 6)
     {
       if (imageActuelleAnimation == 1)
       {
@@ -971,6 +974,70 @@ public:
     }
   }
 
+  void GererBoutonPortailWifi()
+  {
+    this->boutonPortailWifi.LireBoutonEtSetEtat();
+    if (this->boutonPortailWifi.GetEstAppuye())
+    {
+      AfficherAPModeLCD();
+      this->configurationStation.ConfigurerReseauSurDemande();
+      this->boutonPortailWifi.SetEstAppuye(false);
+      ecranLCDStation.clear();
+    }
+  }
+
+  void LancerAction1()
+  {
+    if ((millis() - tempsDepartLoop) <= tempsParAction)
+    {
+      if (etapeActuelleLoopProgramme == 0)
+      {
+        Serial.println(millis() - tempsDepartLoop);
+        LireDonneesBarometre();
+        AfficherTemperaturePressionLCD();
+        PublierInfosBarometreMQTT();
+        etapeActuelleLoopProgramme++;
+      }
+    }
+  }
+
+  void LancerAction2()
+  {
+    if ((millis() - tempsDepartLoop) > tempsParAction)
+    {
+      if (etapeActuelleLoopProgramme == 1)
+      {
+        Serial.println(millis() - tempsDepartLoop);
+        AfficherAltitudeHumiditeLCD();
+        etapeActuelleLoopProgramme++;
+      }
+    }
+  }
+
+  void LancerAction3()
+  {
+    if ((millis() - tempsDepartLoop) > tempsParAction * 2)
+    {
+      if (etapeActuelleLoopProgramme == 2)
+      {
+        Serial.println(millis() - tempsDepartLoop);
+        tempsDepartAnimationLCD = millis();
+        etapeActuelleLoopProgramme++;
+      }
+      AfficherAnimationLCDSelonMeteo();
+    }
+  }
+
+  void LancerAction4()
+  {
+    if ((millis() - tempsDepartLoop) > tempsParAction * 3)
+    {
+      Serial.println(millis() - tempsDepartLoop);
+      tempsDepartLoop = millis();
+      etapeActuelleLoopProgramme = 0;
+    }
+  }
+
   void Executer()
   {
     if ((millis() - dernierTempsFecthAPI) > 3600000)
@@ -979,58 +1046,26 @@ public:
       dernierTempsFecthAPI = millis();
     }
 
-    this->boutonStation.LireBoutonEtSetEtat();
-    if (this->boutonStation.GetEstAppuye())
-    {
-      AfficherAPModeLCD();
-      this->configurationStation.ConfigurerReseauSurDemande();
-      this->boutonStation.SetEstAppuye(false);
-      ecranLCDStation.clear();
-    }
-
-    if ((millis() - tempsDepartLoop) < periodeDeTempsAction)
-    {
-      if (etapeAlternanceLCD == 0)
-      {
-        Serial.println(millis() - tempsDepartLoop);
-        LireDonneesBarometre();
-        AfficherTemperaturePressionLCD();
-        PublierInfosBarometreMQTT();
-        etapeAlternanceLCD++;
-      }
-    }
-
-    if ((millis() - tempsDepartLoop) >= periodeDeTempsAction && (millis() - tempsDepartLoop) < periodeDeTempsAction * 2)
-    {
-      if (etapeAlternanceLCD == 1)
-      {
-        Serial.println(millis() - tempsDepartLoop);
-        AfficherAltitudeHumiditeLCD();
-        etapeAlternanceLCD++;
-      }
-    }
-
-    if ((millis() - tempsDepartLoop) > periodeDeTempsAction * 2)
-    {
-      if (etapeAlternanceLCD == 2)
-      {
-        Serial.println(millis() - tempsDepartLoop);
-        tempsDepartAnimationLCD = millis();
-        etapeAlternanceLCD++;
-      }
-      AfficherAnimationLCDSelonMeteo();
-    }
-
-    if ((millis() - tempsDepartLoop) > periodeDeTempsAction * 3)
-    {
-      Serial.println(millis() - tempsDepartLoop);
-      tempsDepartLoop = millis();
-      etapeAlternanceLCD = 0;
-    }
+    GererBoutonPortailWifi();
+    LancerAction1();
+    LancerAction2();
+    LancerAction3();
+    LancerAction4();
   }
 };
 
-Bouton boutonStation(18);
+class EcranLCDAnime
+{
+private:
+  LiquidCrystal_I2C &ecranLCD;
+  AnimationLCD animationsLCD[4];
+  
+public:
+  EcranLCDAnime(LiquidCrystal_I2C &p_ecranLCD, AnimationLCD (&p_animationsLCD)[4]) : ecranLCD(p_ecranLCD), animationsLCD(p_animationsLCD){}
+
+};
+
+Bouton boutonPortailWifi(18);
 ConfigurationStation configurationStation;
 Adafruit_BME280 bme280Station;
 
@@ -1042,7 +1077,7 @@ AnimationLCD animationNeige(librairiesImagesLCD.neige1, librairiesImagesLCD.neig
 AnimationLCD animationsLCD[4]{animationSoleil, animationNuages, animationPluie, animationNeige};
 LiquidCrystal_I2C ecranLCDStation(0x27, 16, 2);
 
-StationMeteo stationMeteo(boutonStation, configurationStation, bme280Station, ecranLCDStation, animationsLCD);
+StationMeteo stationMeteo(boutonPortailWifi, configurationStation, bme280Station, ecranLCDStation, animationsLCD);
 
 void setup()
 {
