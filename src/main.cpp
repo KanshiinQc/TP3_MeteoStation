@@ -1,3 +1,5 @@
+// UN SEUL FICHIER CPP COMME DEMANDÉ DANS L'ÉNONCÉ
+
 // Include(s)Libraire de base
 #include <FS.h> // Selon la doc doit être en premier sinon tout crash et brûle :D.
 #include <Arduino.h>
@@ -10,7 +12,6 @@
 #include <SPIFFS.h>
 
 // En le mettant dans la classe configurationStation, tout plantait a cause de la func... Je n'ai pas trouvé quoi faire. Problème de statique
-bool doitSauvegarderConfig;
 
 // Include(s) Pour BME280
 #include <Adafruit_BME280.h>
@@ -71,6 +72,8 @@ private:
   char mqttPassword[100];
   const char ssid[50] = MYSSID;
   const char password[50] = MYPSW;
+  // DEMANDER A PF
+  static bool doitSauvegarderConfig;
 
 public:
   //static bool &doitSauvegarderConfig;
@@ -94,39 +97,7 @@ public:
     wifiManager.setSaveConfigCallback(SauvegarderConfigCallback);
     wifiManager.setConfigPortalTimeout(180);
     MonterSystemeDeFichier();
-    TenterConnexionAuWifi();
-    SauvegarderConfigurationReseauDansFichier();
-    AttribuerMqttAPartirFichierConfig();
-    ConfigurerMQTT();
-  }
-
-  void ReconnecterMQTTSiDeconnecter()
-  {
-    // si le wifi crash, wifiManager va reconnecter automatiquement l'esp lors du retour du wifi, cependant il ne reconnectera pas MQTT automatiquement
-    if (!clientMQTT.connected())
-    {
-      ConfigurerMQTT();
-    }
-  }
-
-  void TenterConnexionAuWifi()
-  {
-    if (!wifiManager.autoConnect(ssid, password))
-    {
-      Serial.println("non connecte :");
-    }
-    else
-    {
-      Serial.print("connecte a:");
-      Serial.println(ssid);
-    }
-  }
-
-  void ConfigurerReseauSurDemande()
-  {
-    wifiManager.startConfigPortal(ssid, password);
-    // J'ai essayé des delai pour enlever le probleme de WiFiManager Not Ready sans succès...
-    // delay(1000);
+    TenterConnexionAutomatiqueWifi();
     SauvegarderConfigurationReseauDansFichier();
     AttribuerMqttAPartirFichierConfig();
     ConfigurerMQTT();
@@ -139,6 +110,39 @@ public:
     wifiManager.addParameter(&custom_mqtt_port);
     wifiManager.addParameter(&custom_mqtt_username);
     wifiManager.addParameter(&custom_mqtt_password);
+  }
+
+  void TenterConnexionAutomatiqueWifi()
+  {
+    if (!wifiManager.autoConnect(ssid, password))
+    {
+      Serial.println("non connecte :");
+    }
+    else
+    {
+      Serial.print("connecte a:");
+      Serial.println(ssid);
+    }
+  }
+
+  void ReconnecterMQTTSiDeconnecter()
+  {
+    // si le wifi crash, wifiManager va reconnecter automatiquement l'esp lors du retour du wifi, cependant il ne reconnectera pas MQTT automatiquement
+    // On va donc vérifier une fois par boucle de temps complète, si MQTT s'est déconnecté
+    if (!clientMQTT.connected())
+    {
+      ConfigurerMQTT();
+    }
+  }
+
+  void ConfigurerReseauSurDemande()
+  {
+    wifiManager.startConfigPortal(ssid, password);
+    // J'ai essayé des delai pour enlever le probleme de WiFiManager Not Ready sans succès...
+    // delay(1000);
+    SauvegarderConfigurationReseauDansFichier();
+    AttribuerMqttAPartirFichierConfig();
+    ConfigurerMQTT();
   }
 
   void MonterSystemeDeFichier()
@@ -271,6 +275,7 @@ public:
     return this->clientMQTT;
   }
 };
+bool ConfigurationStation::doitSauvegarderConfig = false;
 
 class LibrairieImagesLCD
 {
@@ -700,7 +705,13 @@ private:
 public:
   EcranLCDAnimeMeteo(LiquidCrystal_I2C &p_ecranLCD, AnimationLCD (&p_animationsLCD)[4]) : ecranLCD(p_ecranLCD), animationsLCD(p_animationsLCD) {}
 
-  void AfficherAPModeLCD()
+  void ParametrerAvantLancement()
+  {
+    this->ecranLCD.init();
+    this->ecranLCD.backlight();
+  }
+
+  void AfficherAPMode()
   {
     ecranLCD.clear();
     ecranLCD.setCursor(0, 0);
@@ -709,7 +720,7 @@ public:
     ecranLCD.print("Acces Active");
   }
 
-  void AfficherMQTTDeconnecteLCD()
+  void AfficherMQTTDeconnecte()
   {
     this->ClearLCD();
     this->ecranLCD.setCursor(0, 0);
@@ -718,7 +729,7 @@ public:
     this->ecranLCD.print("!!DECONNECTEE!!");
   }
 
-  void AfficherTemperaturePressionLCD(float p_temperature, float p_pression)
+  void AfficherTemperaturePression(float p_temperature, float p_pression)
   {
     ecranLCD.clear();
     ecranLCD.setCursor(0, 0);
@@ -732,7 +743,7 @@ public:
     ecranLCD.print("hPa");
   }
 
-  void AfficherAltitudeHumiditeLCD(float p_altitude, float p_humidite)
+  void AfficherAltitudeHumidite(float p_altitude, float p_humidite)
   {
     ecranLCD.clear();
     ecranLCD.setCursor(0, 0);
@@ -746,33 +757,45 @@ public:
     ecranLCD.print(" %");
   }
 
-  void AfficherAnimationLCD(int index, int p_tempsAction)
+  void EffacerAnimation()
+  {
+    ecranLCD.setCursor(0, 0);
+    ecranLCD.print("");
+    ecranLCD.setCursor(0, 1);
+    ecranLCD.print("");
+    ecranLCD.setCursor(1, 0);
+    ecranLCD.print("");
+    ecranLCD.setCursor(1, 1);
+    ecranLCD.print("");
+    ecranLCD.setCursor(2, 0);
+    ecranLCD.print("");
+    ecranLCD.setCursor(2, 1);
+    ecranLCD.print("");
+  }
+
+  void AfficherAnimation(int index, int p_tempsAction)
   {
     if ((millis() - tempsDepartAnimationLCD) % (p_tempsAction / 3) <= p_tempsAction / 6)
     {
       if (imageActuelleAnimation == 0)
       {
-        ecranLCD.clear();
+        EffacerAnimation();
 
-        ecranLCD.createChar(1, this->animationsLCD[index].image1[0]);
-        ecranLCD.createChar(2, this->animationsLCD[index].image1[1]);
-        ecranLCD.createChar(3, this->animationsLCD[index].image1[2]);
-        ecranLCD.createChar(4, this->animationsLCD[index].image1[3]);
-        ecranLCD.createChar(5, this->animationsLCD[index].image1[4]);
-        ecranLCD.createChar(6, this->animationsLCD[index].image1[5]);
+        for (int i = 0; i <= 5; i++)
+        {
+          ecranLCD.createChar(i, this->animationsLCD[index].image1[i]);
+        }
 
-        ecranLCD.setCursor(0, 0);
-        ecranLCD.write(1);
-        ecranLCD.setCursor(0, 1);
-        ecranLCD.write(2);
-        ecranLCD.setCursor(1, 0);
-        ecranLCD.write(3);
-        ecranLCD.setCursor(1, 1);
-        ecranLCD.write(4);
-        ecranLCD.setCursor(2, 0);
-        ecranLCD.write(5);
-        ecranLCD.setCursor(2, 1);
-        ecranLCD.write(6);
+        int indexWrite = 0;
+        for (int i = 0; i <= 2; i++)
+        {
+          for (int j = 0; j <= 1; j++)
+          {
+            ecranLCD.setCursor(i, j);
+            ecranLCD.write(indexWrite++);
+          }
+        }
+
         imageActuelleAnimation = 1;
       }
     }
@@ -781,63 +804,65 @@ public:
     {
       if (imageActuelleAnimation == 1)
       {
+        EffacerAnimation();
 
-        ecranLCD.clear();
+        for (int i = 0; i <= 5; i++)
+        {
+          ecranLCD.createChar(i, this->animationsLCD[index].image2[i]);
+        }
 
-        ecranLCD.createChar(1, this->animationsLCD[index].image2[0]);
-        ecranLCD.createChar(2, this->animationsLCD[index].image2[1]);
-        ecranLCD.createChar(3, this->animationsLCD[index].image2[2]);
-        ecranLCD.createChar(4, this->animationsLCD[index].image2[3]);
-        ecranLCD.createChar(5, this->animationsLCD[index].image2[4]);
-        ecranLCD.createChar(6, this->animationsLCD[index].image2[5]);
-
-        ecranLCD.setCursor(0, 0);
-        ecranLCD.write(1);
-        ecranLCD.setCursor(0, 1);
-        ecranLCD.write(2);
-        ecranLCD.setCursor(1, 0);
-        ecranLCD.write(3);
-        ecranLCD.setCursor(1, 1);
-        ecranLCD.write(4);
-        ecranLCD.setCursor(2, 0);
-        ecranLCD.write(5);
-        ecranLCD.setCursor(2, 1);
-        ecranLCD.write(6);
+        int indexWrite = 0;
+        for (int i = 0; i <= 2; i++)
+        {
+          for (int j = 0; j <= 1; j++)
+          {
+            ecranLCD.setCursor(i, j);
+            ecranLCD.write(indexWrite++);
+          }
+        }
 
         imageActuelleAnimation = 0;
       }
     }
   }
 
-  void AfficherAnimationLCDSelonMeteo(String p_etatMeteo, int p_tempsAction)
+  void AfficherAnimationSelonMeteo(String p_etatMeteo, int p_tempsAction)
   {
-    if (p_etatMeteo == "sn" || p_etatMeteo == "sl" || p_etatMeteo == "h")
+    if (millis() - tempsDepartAnimationLCD < 10)
     {
-      AfficherAnimationLCD(1, p_tempsAction);
+      ecranLCD.setCursor(4, 0);
+      ecranLCD.print("PRESENTEMENT");
     }
-    else if (p_etatMeteo == "t" || p_etatMeteo == "hr" || p_etatMeteo == "lr" || p_etatMeteo == "s")
+
+    if (p_etatMeteo == "Snow" || p_etatMeteo == "Sleet" || p_etatMeteo == "Hail")
     {
-      AfficherAnimationLCD(1, p_tempsAction);
+      AfficherAnimation(3, p_tempsAction);
+      ecranLCD.setCursor(4, 1);
+      ecranLCD.print("IL NEIGE");
     }
-    else if (p_etatMeteo == "hc" || p_etatMeteo == "lc")
+    else if (p_etatMeteo == "Thunderstorm" || p_etatMeteo == "Heavy Rain" || p_etatMeteo == "Light Rain" || p_etatMeteo == "Showers")
     {
-      AfficherAnimationLCD(1, p_tempsAction);
+      AfficherAnimation(2, p_tempsAction);
+      ecranLCD.setCursor(4, 1);
+      ecranLCD.print("IL PLEUT");
     }
-    else if (p_etatMeteo == "c")
+    else if (p_etatMeteo == "Heavy Cloud" || p_etatMeteo == "Light Rain")
     {
-      AfficherAnimationLCD(1, p_tempsAction);
+      AfficherAnimation(1, p_tempsAction);
+      ecranLCD.setCursor(4, 1);
+      ecranLCD.print("NUAGEUX");
+    }
+    else if (p_etatMeteo == "Clear")
+    {
+      AfficherAnimation(0, p_tempsAction);
+      ecranLCD.setCursor(4, 1);
+      ecranLCD.print("BEAU SOLEIL!");
     }
   }
 
   void SetTempsDepartAnimation(long p_temps)
   {
     this->tempsDepartAnimationLCD = p_temps;
-  }
-
-  void DemarrerLCD()
-  {
-    this->ecranLCD.init();
-    this->ecranLCD.backlight();
   }
 
   void ClearLCD()
@@ -855,15 +880,35 @@ private:
   String valeurRequeteAPI;
   String UrlRequeteAPI;
   String etatDeLaMeteo;
+  int dernierTempsFecthEtatMeteo;
+
+  static TaskHandle_t tacheDedieeFetchAPI;
+  const static BaseType_t deuxiemeCoeur = 1;
 
 public:
-  RapporteurEtatMeteo()
+  RapporteurEtatMeteo() {}
+
+  void FaireRequeteAPIChaqueHeure()
   {
+    if ((millis() - dernierTempsFecthEtatMeteo) > 3600000)
+    {
+      this->MettreEtatMeteoAJour();
+      dernierTempsFecthEtatMeteo = millis();
+    }
   }
+
+  // CRÉDIT A PIERRE-FRANÇOIS POUR CE CODE ET L'IDÉE DU 2EME COEUR`
+  /*
+  void LierTaskHTTPAuDeuxiemeCoeur()
+  {
+    xTaskCreatePinnedToCore([](void *rm) -> void { ((RapporteurEtatMeteo *)rm)->FaireRequeteHttpGet(); }, "tacheDedieeFetchAPI", 30000, this, 1, &tacheDedieeFetchAPI, deuxiemeCoeur);
+  }
+  */
 
   void ParametrerAvantLancement()
   {
     configTime(ajustementSecondesESTvsGMT, 0, serveurNTP);
+    //LierTaskHTTPAuDeuxiemeCoeur();
   }
 
   void SetUrlAPI()
@@ -884,11 +929,17 @@ public:
       String jour = String(moisInt);
 
       UrlRequeteAPI = "https://www.metaweather.com/api/location/3534/" + annee + "/" + jour + "/" + mois + "/";
+
+      // POUR TESTER D'AUTRES TEMPERATURES/ANIMATIONS --> LONDON / SANTA CRUZ
+      //UrlRequeteAPI = "https://www.metaweather.com/api/location/44418/" + annee + "/" + jour + "/" + mois + "/";
+      //UrlRequeteAPI = "https://www.metaweather.com/api/location/2488853/" + annee + "/" + jour + "/" + mois + "/";
     }
   }
 
   void FaireRequeteHttpGet()
   {
+    Serial.print("La tâche roule sur le coeur numéro:");
+    Serial.println(xPortGetCoreID());
     HTTPClient clientHTTP;
 
     clientHTTP.begin(UrlRequeteAPI);
@@ -927,7 +978,7 @@ public:
     }
     else
     {
-      const char *etatMeteoChar = doc[0]["weather_state_abbr"];
+      const char *etatMeteoChar = doc[0]["weather_state_name"];
       etatDeLaMeteo = String(etatMeteoChar);
     }
 
@@ -941,11 +992,17 @@ public:
     SetEtatDeLaMeteo();
   }
 
-  String &GetEtatMeteo()
+  void Executer()
+  {
+    FaireRequeteAPIChaqueHeure();
+  }
+
+  String& GetEtatMeteo()
   {
     return this->etatDeLaMeteo;
   }
 };
+TaskHandle_t RapporteurEtatMeteo::tacheDedieeFetchAPI;
 
 class StationMeteo
 {
@@ -963,26 +1020,18 @@ private:
   EcranLCDAnimeMeteo &ecranLCDAnime;
 
   RapporteurEtatMeteo rapporteurEtatMeteo;
-  int dernierTempsFecthEtatMeteo;
 
   long tempsDepartLoop;
   int etapeActuelleLoopProgramme;
   const int tempsParAction = 4000;
 
-  //static TaskHandle_t tacheDedieeFetchAPI;
-  //const static BaseType_t deuxiemeCoeur = 1;
+  // DEMANDER PF
 
 public:
   StationMeteo(Bouton &p_boutonPortailWifi, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, EcranLCDAnimeMeteo &p_ecranLCDAnime)
       : boutonPortailWifi(p_boutonPortailWifi), configurationStation(p_configurationStation), bme280Station(p_bme280),
         ecranLCDAnime(p_ecranLCDAnime), rapporteurEtatMeteo(){};
 
-  /*
-  void LierTaskHTTPAuDeuxiemeCoeur()
-  {
-    xTaskCreatePinnedToCore(this->FaireRequeteHttpGet(), "tacheDedieeFetchAPI", 30000, this, 1, &tacheDedieeFetchAPI, deuxiemeCoeur);
-  }
-  */
   void SetTempsDepartLoopAMaintenant()
   {
     this->tempsDepartLoop = millis();
@@ -990,8 +1039,6 @@ public:
 
   void ParametrerAvantLancement()
   {
-    this->configurationStation.ParametrerAvantLancement();
-
     if (!bme280Station.begin(0x76))
     {
       Serial.println("Aucun baromètre trouvé, vérifier le câblage");
@@ -999,9 +1046,10 @@ public:
         ;
     }
 
-    ecranLCDAnime.DemarrerLCD();
-
+    this->configurationStation.ParametrerAvantLancement();
+    this->ecranLCDAnime.ParametrerAvantLancement();
     this->rapporteurEtatMeteo.ParametrerAvantLancement();
+
     this->rapporteurEtatMeteo.MettreEtatMeteoAJour();
 
     SetTempsDepartLoopAMaintenant();
@@ -1036,61 +1084,62 @@ public:
     this->boutonPortailWifi.LireBoutonEtSetEtat();
     if (this->boutonPortailWifi.GetEstAppuye())
     {
-      this->ecranLCDAnime.AfficherAPModeLCD();
+      this->ecranLCDAnime.AfficherAPMode();
       this->configurationStation.ConfigurerReseauSurDemande();
       this->boutonPortailWifi.SetEstAppuye(false);
       this->ecranLCDAnime.ClearLCD();
     }
   }
 
-  void LancerAction1()
+  void LancerEtape1DuProgramme()
   {
     if ((millis() - tempsDepartLoop) <= tempsParAction)
     {
       if (etapeActuelleLoopProgramme == 0)
       {
         Serial.println(millis() - tempsDepartLoop);
-        // Ceci gère les déconnexion au Wifi très courtes. Si c'est plus long, l'AP est lancé. 
+        // Ceci gère les déconnexion au Wifi très courtes. Si c'est plus long, l'AP est lancé.
         this->configurationStation.ReconnecterMQTTSiDeconnecter();
-        LireDonneesBarometre();
-        ecranLCDAnime.AfficherTemperaturePressionLCD(this->bmeValeurTemperature, this->bmeValeurPression);
-        PublierInfosBarometreMQTT();
-        etapeActuelleLoopProgramme++;
+        this->LireDonneesBarometre();
+        this->ecranLCDAnime.AfficherTemperaturePression(this->bmeValeurTemperature, this->bmeValeurPression);
+        this->PublierInfosBarometreMQTT();
+        this->etapeActuelleLoopProgramme++;
       }
     }
   }
 
-  void LancerAction2()
+  void LancerEtape2DuProgramme()
   {
     if ((millis() - tempsDepartLoop) > tempsParAction)
     {
       if (etapeActuelleLoopProgramme == 1)
       {
         Serial.println(millis() - tempsDepartLoop);
-        ecranLCDAnime.AfficherAltitudeHumiditeLCD(this->bmeValeurAltitude, this->bmeValeurHumidite);
+        ecranLCDAnime.AfficherAltitudeHumidite(this->bmeValeurAltitude, this->bmeValeurHumidite);
         etapeActuelleLoopProgramme++;
       }
     }
   }
 
-  void LancerAction3()
+  void LancerEtape3DuProgramme()
   {
     if ((millis() - tempsDepartLoop) > tempsParAction * 2)
     {
       if (etapeActuelleLoopProgramme == 2)
       {
         Serial.println(millis() - tempsDepartLoop);
+        ecranLCDAnime.ClearLCD();
         ecranLCDAnime.SetTempsDepartAnimation(millis());
         etapeActuelleLoopProgramme++;
       }
-      if(etapeActuelleLoopProgramme < 4)
+      if (etapeActuelleLoopProgramme < 4)
       {
-        this->ecranLCDAnime.AfficherAnimationLCDSelonMeteo(this->rapporteurEtatMeteo.GetEtatMeteo(), tempsParAction);
+        this->ecranLCDAnime.AfficherAnimationSelonMeteo(this->rapporteurEtatMeteo.GetEtatMeteo(), tempsParAction);
       }
     }
   }
 
-  void LancerAction4()
+  void LancerEtape4DuProgramme()
   {
     if ((millis() - tempsDepartLoop) > tempsParAction * 3)
     {
@@ -1098,7 +1147,7 @@ public:
       {
         if (!this->configurationStation.GetClientMQTT().connected())
         {
-          this->ecranLCDAnime.AfficherMQTTDeconnecteLCD();
+          this->ecranLCDAnime.AfficherMQTTDeconnecte();
           etapeActuelleLoopProgramme++;
         }
         else
@@ -1111,7 +1160,7 @@ public:
     }
   }
 
-  void LancerAction5()
+  void LancerEtape5DuProgramme()
   {
     if ((millis() - tempsDepartLoop) > tempsParAction * 4)
     {
@@ -1123,18 +1172,15 @@ public:
 
   void Executer()
   {
-    if ((millis() - dernierTempsFecthEtatMeteo) > 3600000)
-    {
-      this->rapporteurEtatMeteo.MettreEtatMeteoAJour();
-      dernierTempsFecthEtatMeteo = millis();
-    }
+    this->rapporteurEtatMeteo.Executer();
 
     GererBoutonPortailWifi();
-    LancerAction1();
-    LancerAction2();
-    LancerAction3();
-    LancerAction4();
-    LancerAction5();
+
+    LancerEtape1DuProgramme();
+    LancerEtape2DuProgramme();
+    LancerEtape3DuProgramme();
+    LancerEtape4DuProgramme();
+    LancerEtape5DuProgramme();
   }
 };
 
@@ -1145,7 +1191,6 @@ Adafruit_BME280 bme280Station;
 
 LibrairieImagesLCD librairiesImagesLCD;
 
-// Nous aurions voulu instancier les objets AnimationLCD directement dans l'objet EcranLCDAnimeMeteo, mais on a pas reussi ça faisait plein d'erreurs
 AnimationLCD animationSoleil(librairiesImagesLCD.soleil1, librairiesImagesLCD.soleil2);
 AnimationLCD animationNuages(librairiesImagesLCD.nuage1, librairiesImagesLCD.nuage2);
 AnimationLCD animationPluie(librairiesImagesLCD.pluie1, librairiesImagesLCD.pluie2);
