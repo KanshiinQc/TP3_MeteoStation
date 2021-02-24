@@ -1,7 +1,6 @@
 // UN SEUL FICHIER CPP COMME DEMANDÉ DANS L'ÉNONCÉ
 
-// Include(s)Libraire de base
-#include <FS.h> // Selon la doc doit être en premier sinon tout crash et brûle :D.
+// Include(s) Librairies de base
 #include <Arduino.h>
 
 // Include(s) pour requêtes API
@@ -11,18 +10,16 @@
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
 
-// En le mettant dans la classe configurationStation, tout plantait a cause de la func... Je n'ai pas trouvé quoi faire. Problème de statique
-
 // Include(s) Pour BME280
 #include <Adafruit_BME280.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 
-// Include(s) pour LCD
+// Include(s) / Define(s) pour LCD
 #define PRESSION_NIVEAU_MER (1013.25)
 #include <LiquidCrystal_I2C.h>
 
-// Include(s) Connexion Wifi
+// Include(s) Connexion/Configuration Wifi
 #include <AccessPointCredentials.h>
 #include <WiFi.h>
 #include <WifiManager.h>
@@ -50,9 +47,9 @@ public:
   {
     return this->estAppuye;
   }
-  void SetEstAppuye(bool boutonEstAppuye)
+  void SetEstAppuye(bool p_boutonEstAppuye)
   {
-    this->estAppuye = boutonEstAppuye;
+    this->estAppuye = p_boutonEstAppuye;
   }
 };
 
@@ -72,14 +69,12 @@ private:
   char mqttPassword[100];
   const char ssid[50] = MYSSID;
   const char password[50] = MYPSW;
-  // DEMANDER A PF
   static bool doitSauvegarderConfig;
 
 public:
-  //static bool &doitSauvegarderConfig;
   ConfigurationStation()
       : wifiManager(), custom_mqtt_server("mqttServer", "Serveur MQTT", mqttServer, 15), custom_mqtt_port("mqttPort", "Port MQTT", mqttPort, 5),
-        custom_mqtt_username("mqttUser", "Username MQTT", mqttUser, 50), custom_mqtt_password("mqttPassword", "Password MQTT", mqttPassword, 100),
+        custom_mqtt_username("mqttUser", "Utilisateur MQTT", mqttUser, 50), custom_mqtt_password("mqttPassword", "Mot de passe MQTT", mqttPassword, 100),
         clientWifi(), clientMQTT(clientWifi)
   {
     AjouterParametresWifiManagerCustom();
@@ -93,28 +88,28 @@ public:
 
   void ParametrerAvantLancement()
   {
-    wifiManager.setWiFiAutoReconnect(true);
-    wifiManager.setSaveConfigCallback(SauvegarderConfigCallback);
-    wifiManager.setConfigPortalTimeout(180);
-    MonterSystemeDeFichier();
-    TenterConnexionAutomatiqueWifi();
-    SauvegarderConfigurationReseauDansFichier();
-    AttribuerMqttAPartirFichierConfig();
-    ConfigurerMQTT();
+    this->wifiManager.setWiFiAutoReconnect(true);
+    this->wifiManager.setSaveConfigCallback(SauvegarderConfigCallback);
+    this->wifiManager.setConfigPortalTimeout(180);
+    this->MonterSystemeDeFichier();
+    this->TenterConnexionAutomatiqueWifi();
+    this->SauvegarderConfigurationReseauDansFichier();
+    this->AttribuerMqttAPartirFichierConfig();
+    this->ConfigurerMQTT();
   }
 
   void AjouterParametresWifiManagerCustom()
   {
     Serial.println("Ajout Des Parametres");
-    wifiManager.addParameter(&custom_mqtt_server);
-    wifiManager.addParameter(&custom_mqtt_port);
-    wifiManager.addParameter(&custom_mqtt_username);
-    wifiManager.addParameter(&custom_mqtt_password);
+    this->wifiManager.addParameter(&custom_mqtt_server);
+    this->wifiManager.addParameter(&custom_mqtt_port);
+    this->wifiManager.addParameter(&custom_mqtt_username);
+    this->wifiManager.addParameter(&custom_mqtt_password);
   }
 
   void TenterConnexionAutomatiqueWifi()
   {
-    if (!wifiManager.autoConnect(ssid, password))
+    if (!this->wifiManager.autoConnect(ssid, password))
     {
       Serial.println("non connecte :");
     }
@@ -129,20 +124,20 @@ public:
   {
     // si le wifi crash, wifiManager va reconnecter automatiquement l'esp lors du retour du wifi, cependant il ne reconnectera pas MQTT automatiquement
     // On va donc vérifier une fois par boucle de temps complète, si MQTT s'est déconnecté
-    if (!clientMQTT.connected())
+    if (!this->clientMQTT.connected())
     {
-      ConfigurerMQTT();
+      this->ConfigurerMQTT();
     }
   }
 
   void ConfigurerReseauSurDemande()
   {
-    wifiManager.startConfigPortal(ssid, password);
+    this->wifiManager.startConfigPortal(ssid, password);
     // J'ai essayé des delai pour enlever le probleme de WiFiManager Not Ready sans succès...
     // delay(1000);
-    SauvegarderConfigurationReseauDansFichier();
-    AttribuerMqttAPartirFichierConfig();
-    ConfigurerMQTT();
+    this->SauvegarderConfigurationReseauDansFichier();
+    this->AttribuerMqttAPartirFichierConfig();
+    this->ConfigurerMQTT();
   }
 
   void MonterSystemeDeFichier()
@@ -223,10 +218,10 @@ public:
           serializeJsonPretty(doc["mqtt_password"], Serial);
           Serial.println();
 
-          strcpy(mqttServer, doc["mqtt_server"]);
-          strcpy(mqttPort, doc["mqtt_port"]);
-          strcpy(mqttUser, doc["mqtt_user"]);
-          strcpy(mqttPassword, doc["mqtt_password"]);
+          strcpy(this->mqttServer, doc["mqtt_server"]);
+          strcpy(this->mqttPort, doc["mqtt_port"]);
+          strcpy(this->mqttUser, doc["mqtt_user"]);
+          strcpy(this->mqttPassword, doc["mqtt_password"]);
         }
 
         configFile.close();
@@ -243,20 +238,20 @@ public:
   {
     int nombretentatives = 1;
 
-    clientMQTT.setServer(mqttServer, atoi(mqttPort));
+    this->clientMQTT.setServer(mqttServer, atoi(mqttPort));
 
-    while (!clientMQTT.connected() && nombretentatives < 5)
+    while (!this->clientMQTT.connected() && nombretentatives < 5)
     {
       if (nombretentatives == 4)
       {
-        ConfigurerReseauSurDemande();
-        SauvegarderConfigurationReseauDansFichier();
-        AttribuerMqttAPartirFichierConfig();
+        this->ConfigurerReseauSurDemande();
+        this->SauvegarderConfigurationReseauDansFichier();
+        this->AttribuerMqttAPartirFichierConfig();
       }
 
       Serial.println("Connexion en cours a MQTT");
 
-      if (clientMQTT.connect("ESP32Client", mqttUser, mqttPassword))
+      if (this->clientMQTT.connect("ESP32Client", mqttUser, mqttPassword))
       {
         Serial.println("connecté!");
       }
@@ -265,7 +260,7 @@ public:
         Serial.print("echec avec code");
         Serial.print(clientMQTT.state());
         nombretentatives++;
-        delay(1000);
+        delay(2000);
       }
     }
   }
@@ -689,8 +684,8 @@ public:
 
   AnimationLCD(byte (&p_image1)[6][8], byte (&p_image2)[6][8])
   {
-    memcpy(image1, p_image1, sizeof(image1));
-    memcpy(image2, p_image2, sizeof(image2));
+    memcpy(this->image1, p_image1, sizeof(image1));
+    memcpy(this->image2, p_image2, sizeof(image2));
   }
 };
 
@@ -713,11 +708,11 @@ public:
 
   void AfficherAPMode()
   {
-    ecranLCD.clear();
-    ecranLCD.setCursor(0, 0);
-    ecranLCD.print("Mode Point");
-    ecranLCD.setCursor(0, 1);
-    ecranLCD.print("Acces Active");
+    this->ecranLCD.clear();
+    this->ecranLCD.setCursor(0, 0);
+    this->ecranLCD.print("Mode Point");
+    this->ecranLCD.setCursor(0, 1);
+    this->ecranLCD.print("Acces Active");
   }
 
   void AfficherMQTTDeconnecte()
@@ -731,59 +726,59 @@ public:
 
   void AfficherTemperaturePression(float p_temperature, float p_pression)
   {
-    ecranLCD.clear();
-    ecranLCD.setCursor(0, 0);
-    ecranLCD.print("Temp= ");
-    ecranLCD.print(p_temperature);
-    ecranLCD.print(" *C");
+    this->ecranLCD.clear();
+    this->ecranLCD.setCursor(0, 0);
+    this->ecranLCD.print("Temp= ");
+    this->ecranLCD.print(p_temperature);
+    this->ecranLCD.print(" *C");
 
-    ecranLCD.setCursor(0, 1);
-    ecranLCD.print("Press= ");
-    ecranLCD.print(p_pression);
-    ecranLCD.print("hPa");
+    this->ecranLCD.setCursor(0, 1);
+    this->ecranLCD.print("Press= ");
+    this->ecranLCD.print(p_pression);
+    this->ecranLCD.print("hPa");
   }
 
   void AfficherAltitudeHumidite(float p_altitude, float p_humidite)
   {
-    ecranLCD.clear();
-    ecranLCD.setCursor(0, 0);
-    ecranLCD.print("Alt= ");
-    ecranLCD.print(p_altitude);
-    ecranLCD.print(" m");
+    this->ecranLCD.clear();
+    this->ecranLCD.setCursor(0, 0);
+    this->ecranLCD.print("Alt= ");
+    this->ecranLCD.print(p_altitude);
+    this->ecranLCD.print(" m");
 
-    ecranLCD.setCursor(0, 1);
-    ecranLCD.print("Hum= ");
-    ecranLCD.print(p_humidite);
-    ecranLCD.print(" %");
+    this->ecranLCD.setCursor(0, 1);
+    this->ecranLCD.print("Hum= ");
+    this->ecranLCD.print(p_humidite);
+    this->ecranLCD.print(" %");
   }
 
   void EffacerAnimation()
   {
-    ecranLCD.setCursor(0, 0);
-    ecranLCD.print("");
-    ecranLCD.setCursor(0, 1);
-    ecranLCD.print("");
-    ecranLCD.setCursor(1, 0);
-    ecranLCD.print("");
-    ecranLCD.setCursor(1, 1);
-    ecranLCD.print("");
-    ecranLCD.setCursor(2, 0);
-    ecranLCD.print("");
-    ecranLCD.setCursor(2, 1);
-    ecranLCD.print("");
+    this->ecranLCD.setCursor(0, 0);
+    this->ecranLCD.print("");
+    this->ecranLCD.setCursor(0, 1);
+    this->ecranLCD.print("");
+    this->ecranLCD.setCursor(1, 0);
+    this->ecranLCD.print("");
+    this->ecranLCD.setCursor(1, 1);
+    this->ecranLCD.print("");
+    this->ecranLCD.setCursor(2, 0);
+    this->ecranLCD.print("");
+    this->ecranLCD.setCursor(2, 1);
+    this->ecranLCD.print("");
   }
 
   void AfficherAnimation(int index, int p_tempsAction)
   {
-    if ((millis() - tempsDepartAnimationLCD) % (p_tempsAction / 3) <= p_tempsAction / 6)
+    if ((millis() - this->tempsDepartAnimationLCD) % (p_tempsAction / 3) <= p_tempsAction / 6)
     {
-      if (imageActuelleAnimation == 0)
+      if (this->imageActuelleAnimation == 0)
       {
-        EffacerAnimation();
+        this->EffacerAnimation();
 
         for (int i = 0; i <= 5; i++)
         {
-          ecranLCD.createChar(i, this->animationsLCD[index].image1[i]);
+          this->ecranLCD.createChar(i, this->animationsLCD[index].image1[i]);
         }
 
         int indexWrite = 0;
@@ -791,24 +786,24 @@ public:
         {
           for (int j = 0; j <= 1; j++)
           {
-            ecranLCD.setCursor(i, j);
-            ecranLCD.write(indexWrite++);
+            this->ecranLCD.setCursor(i, j);
+            this->ecranLCD.write(indexWrite++);
           }
         }
 
-        imageActuelleAnimation = 1;
+        this->imageActuelleAnimation = 1;
       }
     }
 
-    else if ((millis() - tempsDepartAnimationLCD) % (p_tempsAction / 3) > p_tempsAction / 6)
+    else if ((millis() - this->tempsDepartAnimationLCD) % (p_tempsAction / 3) > p_tempsAction / 6)
     {
-      if (imageActuelleAnimation == 1)
+      if (this->imageActuelleAnimation == 1)
       {
-        EffacerAnimation();
+        this->EffacerAnimation();
 
         for (int i = 0; i <= 5; i++)
         {
-          ecranLCD.createChar(i, this->animationsLCD[index].image2[i]);
+          this->ecranLCD.createChar(i, this->animationsLCD[index].image2[i]);
         }
 
         int indexWrite = 0;
@@ -816,47 +811,47 @@ public:
         {
           for (int j = 0; j <= 1; j++)
           {
-            ecranLCD.setCursor(i, j);
-            ecranLCD.write(indexWrite++);
+            this->ecranLCD.setCursor(i, j);
+            this->ecranLCD.write(indexWrite++);
           }
         }
 
-        imageActuelleAnimation = 0;
+        this->imageActuelleAnimation = 0;
       }
     }
   }
 
   void AfficherAnimationSelonMeteo(String p_etatMeteo, int p_tempsAction)
   {
-    if (millis() - tempsDepartAnimationLCD < 10)
+    if (millis() - this->tempsDepartAnimationLCD < 10)
     {
-      ecranLCD.setCursor(4, 0);
-      ecranLCD.print("PRESENTEMENT");
+      this->ecranLCD.setCursor(4, 0);
+      this->ecranLCD.print("PRESENTEMENT");
     }
 
     if (p_etatMeteo == "Snow" || p_etatMeteo == "Sleet" || p_etatMeteo == "Hail")
     {
-      AfficherAnimation(3, p_tempsAction);
-      ecranLCD.setCursor(4, 1);
-      ecranLCD.print("IL NEIGE");
+      this->AfficherAnimation(3, p_tempsAction);
+      this->ecranLCD.setCursor(4, 1);
+      this->ecranLCD.print("IL NEIGE");
     }
     else if (p_etatMeteo == "Thunderstorm" || p_etatMeteo == "Heavy Rain" || p_etatMeteo == "Light Rain" || p_etatMeteo == "Showers")
     {
-      AfficherAnimation(2, p_tempsAction);
-      ecranLCD.setCursor(4, 1);
-      ecranLCD.print("IL PLEUT");
+      this->AfficherAnimation(2, p_tempsAction);
+      this->ecranLCD.setCursor(4, 1);
+      this->ecranLCD.print("IL PLEUT");
     }
     else if (p_etatMeteo == "Heavy Cloud" || p_etatMeteo == "Light Rain")
     {
-      AfficherAnimation(1, p_tempsAction);
-      ecranLCD.setCursor(4, 1);
-      ecranLCD.print("NUAGEUX");
+      this->AfficherAnimation(1, p_tempsAction);
+      this->ecranLCD.setCursor(4, 1);
+      this->ecranLCD.print("NUAGEUX");
     }
     else if (p_etatMeteo == "Clear")
     {
-      AfficherAnimation(0, p_tempsAction);
-      ecranLCD.setCursor(4, 1);
-      ecranLCD.print("BEAU SOLEIL!");
+      this->AfficherAnimation(0, p_tempsAction);
+      this->ecranLCD.setCursor(4, 1);
+      this->ecranLCD.print("BEAU SOLEIL!");
     }
   }
 
@@ -882,18 +877,18 @@ private:
   String etatDeLaMeteo;
   int dernierTempsFecthEtatMeteo;
 
-  static TaskHandle_t tacheDedieeFetchAPI;
-  const static BaseType_t deuxiemeCoeur = 1;
+  //static TaskHandle_t tacheDedieeFetchAPI;
+  //const static BaseType_t deuxiemeCoeur = 1;
 
 public:
   RapporteurEtatMeteo() {}
 
   void FaireRequeteAPIChaqueHeure()
   {
-    if ((millis() - dernierTempsFecthEtatMeteo) > 3600000)
+    if ((millis() - this->dernierTempsFecthEtatMeteo) > 3600000)
     {
       this->MettreEtatMeteoAJour();
-      dernierTempsFecthEtatMeteo = millis();
+      this->dernierTempsFecthEtatMeteo = millis();
     }
   }
 
@@ -928,7 +923,7 @@ public:
       String mois = String(jourInt);
       String jour = String(moisInt);
 
-      UrlRequeteAPI = "https://www.metaweather.com/api/location/3534/" + annee + "/" + jour + "/" + mois + "/";
+      this->UrlRequeteAPI = "https://www.metaweather.com/api/location/3534/" + annee + "/" + jour + "/" + mois + "/";
 
       // POUR TESTER D'AUTRES TEMPERATURES/ANIMATIONS --> LONDON / SANTA CRUZ
       //UrlRequeteAPI = "https://www.metaweather.com/api/location/44418/" + annee + "/" + jour + "/" + mois + "/";
@@ -1002,7 +997,7 @@ public:
     return this->etatDeLaMeteo;
   }
 };
-TaskHandle_t RapporteurEtatMeteo::tacheDedieeFetchAPI;
+//TaskHandle_t RapporteurEtatMeteo::tacheDedieeFetchAPI;
 
 class StationMeteo
 {
@@ -1025,8 +1020,6 @@ private:
   int etapeActuelleLoopProgramme;
   const int tempsParAction = 4000;
 
-  // DEMANDER PF
-
 public:
   StationMeteo(Bouton &p_boutonPortailWifi, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, EcranLCDAnimeMeteo &p_ecranLCDAnime)
       : boutonPortailWifi(p_boutonPortailWifi), configurationStation(p_configurationStation), bme280Station(p_bme280),
@@ -1039,7 +1032,7 @@ public:
 
   void ParametrerAvantLancement()
   {
-    if (!bme280Station.begin(0x76))
+    if (!this->bme280Station.begin(0x76))
     {
       Serial.println("Aucun baromètre trouvé, vérifier le câblage");
       while (1)
@@ -1052,23 +1045,23 @@ public:
 
     this->rapporteurEtatMeteo.MettreEtatMeteoAJour();
 
-    SetTempsDepartLoopAMaintenant();
+    this->SetTempsDepartLoopAMaintenant();
   }
 
   void LireDonneesBarometre()
   {
-    bmeValeurTemperature = bme280Station.readTemperature();
-    bmeValeurHumidite = bme280Station.readHumidity();
-    bmeValeurPression = bme280Station.readPressure() / 100;
-    bmeValeurAltitude = bme280Station.readAltitude(PRESSION_NIVEAU_MER);
+    this->bmeValeurTemperature = this->bme280Station.readTemperature();
+    this->bmeValeurHumidite = this->bme280Station.readHumidity();
+    this->bmeValeurPression = this->bme280Station.readPressure() / 100;
+    this->bmeValeurAltitude = this->bme280Station.readAltitude(PRESSION_NIVEAU_MER);
   }
 
   void PublierInfosBarometreMQTT()
   {
-    String temperature = String(bmeValeurTemperature);
-    String humidite = String(bmeValeurHumidite);
-    String pression = String(bmeValeurPression);
-    String altitude = String(bmeValeurAltitude);
+    String temperature = String(this->bmeValeurTemperature);
+    String humidite = String(this->bmeValeurHumidite);
+    String pression = String(this->bmeValeurPression);
+    String altitude = String(this->bmeValeurAltitude);
 
     this->configurationStation.GetClientMQTT().publish("stationMeteo/temperature", temperature.c_str());
     this->configurationStation.GetClientMQTT().publish("stationMeteo/humidite", humidite.c_str());
@@ -1093,9 +1086,9 @@ public:
 
   void LancerEtape1DuProgramme()
   {
-    if ((millis() - tempsDepartLoop) <= tempsParAction)
+    if ((millis() - this->tempsDepartLoop) <= this->tempsParAction)
     {
-      if (etapeActuelleLoopProgramme == 0)
+      if (this->etapeActuelleLoopProgramme == 0)
       {
         Serial.println(millis() - tempsDepartLoop);
         // Ceci gère les déconnexion au Wifi très courtes. Si c'est plus long, l'AP est lancé.
@@ -1110,51 +1103,51 @@ public:
 
   void LancerEtape2DuProgramme()
   {
-    if ((millis() - tempsDepartLoop) > tempsParAction)
+    if ((millis() - this->tempsDepartLoop) > this->tempsParAction)
     {
-      if (etapeActuelleLoopProgramme == 1)
+      if (this->etapeActuelleLoopProgramme == 1)
       {
-        Serial.println(millis() - tempsDepartLoop);
-        ecranLCDAnime.AfficherAltitudeHumidite(this->bmeValeurAltitude, this->bmeValeurHumidite);
-        etapeActuelleLoopProgramme++;
+        Serial.println(millis() - this->tempsDepartLoop);
+        this->ecranLCDAnime.AfficherAltitudeHumidite(this->bmeValeurAltitude, this->bmeValeurHumidite);
+        this->etapeActuelleLoopProgramme++;
       }
     }
   }
 
   void LancerEtape3DuProgramme()
   {
-    if ((millis() - tempsDepartLoop) > tempsParAction * 2)
+    if ((millis() - this->tempsDepartLoop) > this->tempsParAction * 2)
     {
-      if (etapeActuelleLoopProgramme == 2)
+      if (this->etapeActuelleLoopProgramme == 2)
       {
         Serial.println(millis() - tempsDepartLoop);
-        ecranLCDAnime.ClearLCD();
-        ecranLCDAnime.SetTempsDepartAnimation(millis());
-        etapeActuelleLoopProgramme++;
+        this->ecranLCDAnime.ClearLCD();
+        this->ecranLCDAnime.SetTempsDepartAnimation(millis());
+        this->etapeActuelleLoopProgramme++;
       }
-      if (etapeActuelleLoopProgramme < 4)
+      if (this->etapeActuelleLoopProgramme < 4)
       {
-        this->ecranLCDAnime.AfficherAnimationSelonMeteo(this->rapporteurEtatMeteo.GetEtatMeteo(), tempsParAction);
+        this->ecranLCDAnime.AfficherAnimationSelonMeteo(this->rapporteurEtatMeteo.GetEtatMeteo(), this->tempsParAction);
       }
     }
   }
 
   void LancerEtape4DuProgramme()
   {
-    if ((millis() - tempsDepartLoop) > tempsParAction * 3)
+    if ((millis() - this->tempsDepartLoop) > this->tempsParAction * 3)
     {
-      if (etapeActuelleLoopProgramme == 3)
+      if (this->etapeActuelleLoopProgramme == 3)
       {
         if (!this->configurationStation.GetClientMQTT().connected())
         {
           this->ecranLCDAnime.AfficherMQTTDeconnecte();
-          etapeActuelleLoopProgramme++;
+          this->etapeActuelleLoopProgramme++;
         }
         else
         {
           Serial.println(millis() - tempsDepartLoop);
-          tempsDepartLoop = millis();
-          etapeActuelleLoopProgramme = 0;
+          this->tempsDepartLoop = millis();
+          this->etapeActuelleLoopProgramme = 0;
         }
       }
     }
@@ -1162,11 +1155,11 @@ public:
 
   void LancerEtape5DuProgramme()
   {
-    if ((millis() - tempsDepartLoop) > tempsParAction * 4)
+    if ((millis() - this->tempsDepartLoop) > this->tempsParAction * 4)
     {
       Serial.println(millis() - tempsDepartLoop);
-      tempsDepartLoop = millis();
-      etapeActuelleLoopProgramme = 0;
+      this->tempsDepartLoop = millis();
+      this->etapeActuelleLoopProgramme = 0;
     }
   }
 
@@ -1174,13 +1167,13 @@ public:
   {
     this->rapporteurEtatMeteo.Executer();
 
-    GererBoutonPortailWifi();
+    this->GererBoutonPortailWifi();
 
-    LancerEtape1DuProgramme();
-    LancerEtape2DuProgramme();
-    LancerEtape3DuProgramme();
-    LancerEtape4DuProgramme();
-    LancerEtape5DuProgramme();
+    this->LancerEtape1DuProgramme();
+    this->LancerEtape2DuProgramme();
+    this->LancerEtape3DuProgramme();
+    this->LancerEtape4DuProgramme();
+    this->LancerEtape5DuProgramme();
   }
 };
 
