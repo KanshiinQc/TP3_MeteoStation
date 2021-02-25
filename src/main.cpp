@@ -927,8 +927,6 @@ public:
 
   void FaireRequeteHttpGet()
   {
-    Serial.print("La tâche roule sur le coeur numéro:");
-    Serial.println(xPortGetCoreID());
     HTTPClient clientHTTP;
 
     clientHTTP.begin(UrlRequeteAPI);
