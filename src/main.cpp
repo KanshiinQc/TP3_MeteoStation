@@ -120,14 +120,17 @@ public:
     }
   }
 
-  void ReconnecterMQTTSiDeconnecter()
+  bool ReconnecterMQTTSiDeconnecter()
   {
     // si le wifi crash, wifiManager va reconnecter automatiquement l'esp lors du retour du wifi, cependant il ne reconnectera pas MQTT automatiquement
     // On va donc vérifier une fois par boucle de temps complète, si MQTT s'est déconnecté
+    bool mqttConnecte = false;
     if (!this->clientMQTT.connected())
     {
-      this->ConfigurerMQTT();
+      mqttConnecte = this->ConfigurerMQTT();
     }
+
+    return mqttConnecte;
   }
 
   void ConfigurerReseauSurDemande()
@@ -154,7 +157,7 @@ public:
     }
     else
     {
-      Serial.println("Echec lors du montage du SYSTEME DE FICHIER");
+      Serial.println("Echec lors du montage du SYSTEME DE FICHIERS");
     }
   }
 
@@ -234,35 +237,22 @@ public:
     }
   }
 
-  void ConfigurerMQTT()
+  bool ConfigurerMQTT()
   {
-    int nombretentatives = 1;
-
     this->clientMQTT.setServer(mqttServer, atoi(mqttPort));
 
-    while (!this->clientMQTT.connected() && nombretentatives < 5)
+    Serial.println("Connexion en cours a MQTT");
+
+    if (this->clientMQTT.connect("ESP32Client", mqttUser, mqttPassword))
     {
-      if (nombretentatives == 4)
-      {
-        this->ConfigurerReseauSurDemande();
-        this->SauvegarderConfigurationReseauDansFichier();
-        this->AttribuerMqttAPartirFichierConfig();
-      }
-
-      Serial.println("Connexion en cours a MQTT");
-
-      if (this->clientMQTT.connect("ESP32Client", mqttUser, mqttPassword))
-      {
-        Serial.println("connecté!");
-      }
-      else
-      {
-        Serial.print("echec avec code");
-        Serial.print(clientMQTT.state());
-        nombretentatives++;
-        delay(2000);
-      }
+      Serial.println("connecté!");
     }
+    else
+    {
+      Serial.print("echec avec code");
+      Serial.print(clientMQTT.state());
+    }
+    return this->clientMQTT.connected();
   }
 
   PubSubClient &GetClientMQTT()
@@ -719,9 +709,9 @@ public:
   {
     this->ClearLCD();
     this->ecranLCD.setCursor(0, 0);
-    this->ecranLCD.print("FILE DE MESSAGE");
+    this->ecranLCD.print("!!MQTT  ERREUR!!");
     this->ecranLCD.setCursor(0, 1);
-    this->ecranLCD.print("!!DECONNECTEE!!");
+    this->ecranLCD.print("TENTATIVE CONNEX");
   }
 
   void AfficherTemperaturePression(float p_temperature, float p_pression)
@@ -992,7 +982,7 @@ public:
     FaireRequeteAPIChaqueHeure();
   }
 
-  String& GetEtatMeteo()
+  String &GetEtatMeteo()
   {
     return this->etatDeLaMeteo;
   }
@@ -1038,11 +1028,19 @@ public:
       while (1)
         ;
     }
+    else
+    {
+      this->LireDonneesBarometre();
+    }
 
     this->configurationStation.ParametrerAvantLancement();
     this->ecranLCDAnime.ParametrerAvantLancement();
     this->rapporteurEtatMeteo.ParametrerAvantLancement();
-
+    if (!this->configurationStation.GetClientMQTT().connected())
+    {
+      this->ecranLCDAnime.AfficherMQTTDeconnecte();
+      delay(2000);
+    }
     this->rapporteurEtatMeteo.MettreEtatMeteoAJour();
 
     this->SetTempsDepartLoopAMaintenant();
@@ -1084,24 +1082,20 @@ public:
     }
   }
 
-  void LancerEtape1DuProgramme()
+  void LancerEtapeAfficherTemperaturePressionLCD()
   {
     if ((millis() - this->tempsDepartLoop) <= this->tempsParAction)
     {
       if (this->etapeActuelleLoopProgramme == 0)
       {
         Serial.println(millis() - tempsDepartLoop);
-        // Ceci gère les déconnexion au Wifi très courtes. Si c'est plus long, l'AP est lancé.
-        this->configurationStation.ReconnecterMQTTSiDeconnecter();
-        this->LireDonneesBarometre();
         this->ecranLCDAnime.AfficherTemperaturePression(this->bmeValeurTemperature, this->bmeValeurPression);
-        this->PublierInfosBarometreMQTT();
         this->etapeActuelleLoopProgramme++;
       }
     }
   }
 
-  void LancerEtape2DuProgramme()
+  void LancerEtapeAfficherAltitudeHumiditeLCD()
   {
     if ((millis() - this->tempsDepartLoop) > this->tempsParAction)
     {
@@ -1114,7 +1108,7 @@ public:
     }
   }
 
-  void LancerEtape3DuProgramme()
+  void LancerEtapeAfficherAnimationMeteoLCD()
   {
     if ((millis() - this->tempsDepartLoop) > this->tempsParAction * 2)
     {
@@ -1132,20 +1126,25 @@ public:
     }
   }
 
-  void LancerEtape4DuProgramme()
+  void LancerEtapeLireBarometreEtPublierMQTT()
   {
     if ((millis() - this->tempsDepartLoop) > this->tempsParAction * 3)
     {
       if (this->etapeActuelleLoopProgramme == 3)
       {
+        this->LireDonneesBarometre();
+
         if (!this->configurationStation.GetClientMQTT().connected())
         {
           this->ecranLCDAnime.AfficherMQTTDeconnecte();
+          // Ceci gère les déconnexion au Wifi très courtes. Si c'est plus long, l'AP est lancé.
+          this->configurationStation.ReconnecterMQTTSiDeconnecter();
           this->etapeActuelleLoopProgramme++;
         }
         else
         {
           Serial.println(millis() - tempsDepartLoop);
+          this->PublierInfosBarometreMQTT();
           this->tempsDepartLoop = millis();
           this->etapeActuelleLoopProgramme = 0;
         }
@@ -1153,7 +1152,7 @@ public:
     }
   }
 
-  void LancerEtape5DuProgramme()
+  void LancerEtapeRemiseAZeroLoop()
   {
     if ((millis() - this->tempsDepartLoop) > this->tempsParAction * 4)
     {
@@ -1169,11 +1168,11 @@ public:
 
     this->GererBoutonPortailWifi();
 
-    this->LancerEtape1DuProgramme();
-    this->LancerEtape2DuProgramme();
-    this->LancerEtape3DuProgramme();
-    this->LancerEtape4DuProgramme();
-    this->LancerEtape5DuProgramme();
+    this->LancerEtapeAfficherTemperaturePressionLCD();
+    this->LancerEtapeAfficherAltitudeHumiditeLCD();
+    this->LancerEtapeAfficherAnimationMeteoLCD();
+    this->LancerEtapeLireBarometreEtPublierMQTT();
+    this->LancerEtapeRemiseAZeroLoop();
   }
 };
 
