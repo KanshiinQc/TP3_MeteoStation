@@ -100,7 +100,7 @@ public:
 
   void AjouterParametresWifiManagerCustom()
   {
-    Serial.println("Ajout Des Parametres");
+    Serial.println("Ajout Des Parametres Customs MQTT");
     this->wifiManager.addParameter(&custom_mqtt_server);
     this->wifiManager.addParameter(&custom_mqtt_port);
     this->wifiManager.addParameter(&custom_mqtt_username);
@@ -122,8 +122,8 @@ public:
 
   void ReconnecterMQTTSiDeconnecter()
   {
-    // si le wifi crash, wifiManager va reconnecter automatiquement l'esp lors du retour du wifi, cependant il ne reconnectera pas MQTT automatiquement
-    // On va donc vérifier une fois par boucle de temps complète, si MQTT s'est déconnecté
+    // si le WiFi crash, wifiManager va reconnecter automatiquement l'esp lors du retour du WiFi, cependant il ne reconnectera pas MQTT automatiquement
+    // On va donc vérifier une fois par boucle d'exécution de la station si MQTT s'est déconnecté et tenter de le reconnecter 1 fois.
     if (!this->clientMQTT.connected())
     {
       this->ConfigurerMQTT();
@@ -675,7 +675,7 @@ public:
   }
 };
 
-class EcranLCDAnimeMeteo
+class EcranLCDAnimeStationMeteo
 {
 private:
   LiquidCrystal_I2C &ecranLCD;
@@ -684,12 +684,20 @@ private:
   int imageActuelleAnimation;
 
 public:
-  EcranLCDAnimeMeteo(LiquidCrystal_I2C &p_ecranLCD, AnimationLCD (&p_animationsLCD)[4]) : ecranLCD(p_ecranLCD), animationsLCD(p_animationsLCD) {}
+  EcranLCDAnimeStationMeteo(LiquidCrystal_I2C &p_ecranLCD, AnimationLCD (&p_animationsLCD)[4]) : ecranLCD(p_ecranLCD), animationsLCD(p_animationsLCD) {}
 
   void ParametrerAvantLancement()
   {
     this->ecranLCD.init();
     this->ecranLCD.backlight();
+  }
+
+  void AfficherDemarrageEnCours()
+  {
+    this->ecranLCD.setCursor(0,0);
+    this->ecranLCD.print("    DEMARRAGE");
+    this->ecranLCD.setCursor(0,1);
+    this->ecranLCD.print("!!! EN COURS !!!");
   }
 
   void AfficherAPMode()
@@ -998,7 +1006,7 @@ private:
   float bmeValeurPression;
   float bmeValeurAltitude;
 
-  EcranLCDAnimeMeteo &ecranLCDAnime;
+  EcranLCDAnimeStationMeteo &ecranLCDAnime;
 
   RapporteurEtatMeteo rapporteurEtatMeteo;
 
@@ -1007,7 +1015,7 @@ private:
   const int tempsParAction = 4000;
 
 public:
-  StationMeteo(Bouton &p_boutonPortailWifi, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, EcranLCDAnimeMeteo &p_ecranLCDAnime)
+  StationMeteo(Bouton &p_boutonPortailWifi, ConfigurationStation &p_configurationStation, Adafruit_BME280 &p_bme280, EcranLCDAnimeStationMeteo &p_ecranLCDAnime)
       : boutonPortailWifi(p_boutonPortailWifi), configurationStation(p_configurationStation), bme280Station(p_bme280),
         ecranLCDAnime(p_ecranLCDAnime), rapporteurEtatMeteo(){};
 
@@ -1029,14 +1037,10 @@ public:
       this->LireDonneesBarometre();
     }
 
-    this->configurationStation.ParametrerAvantLancement();
     this->ecranLCDAnime.ParametrerAvantLancement();
+    this->ecranLCDAnime.AfficherDemarrageEnCours();
+    this->configurationStation.ParametrerAvantLancement();
     this->rapporteurEtatMeteo.ParametrerAvantLancement();
-    if (!this->configurationStation.GetClientMQTT().connected())
-    {
-      this->ecranLCDAnime.AfficherMQTTDeconnecte();
-      delay(2000);
-    }
     this->rapporteurEtatMeteo.MettreEtatMeteoAJour();
 
     this->SetTempsDepartLoopAMaintenant();
@@ -1186,7 +1190,7 @@ AnimationLCD animationNeige(librairiesImagesLCD.neige1, librairiesImagesLCD.neig
 AnimationLCD animationsLCD[4]{animationSoleil, animationNuages, animationPluie, animationNeige};
 
 LiquidCrystal_I2C ecranLCDStation(0x27, 16, 2);
-EcranLCDAnimeMeteo ecranAnimeLCDMeteo(ecranLCDStation, animationsLCD);
+EcranLCDAnimeStationMeteo ecranAnimeLCDMeteo(ecranLCDStation, animationsLCD);
 
 StationMeteo stationMeteo(boutonPortailWifi, configurationStation, bme280Station, ecranAnimeLCDMeteo);
 
