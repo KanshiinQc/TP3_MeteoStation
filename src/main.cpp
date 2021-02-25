@@ -120,17 +120,14 @@ public:
     }
   }
 
-  bool ReconnecterMQTTSiDeconnecter()
+  void ReconnecterMQTTSiDeconnecter()
   {
     // si le wifi crash, wifiManager va reconnecter automatiquement l'esp lors du retour du wifi, cependant il ne reconnectera pas MQTT automatiquement
     // On va donc vérifier une fois par boucle de temps complète, si MQTT s'est déconnecté
-    bool mqttConnecte = false;
     if (!this->clientMQTT.connected())
     {
-      mqttConnecte = this->ConfigurerMQTT();
+      this->ConfigurerMQTT();
     }
-
-    return mqttConnecte;
   }
 
   void ConfigurerReseauSurDemande()
@@ -237,7 +234,7 @@ public:
     }
   }
 
-  bool ConfigurerMQTT()
+  void ConfigurerMQTT()
   {
     this->clientMQTT.setServer(mqttServer, atoi(mqttPort));
 
@@ -252,7 +249,6 @@ public:
       Serial.print("echec avec code");
       Serial.print(clientMQTT.state());
     }
-    return this->clientMQTT.connected();
   }
 
   PubSubClient &GetClientMQTT()
