@@ -694,7 +694,7 @@ class EcranLCDAnimeMeteo
 private:
   LiquidCrystal_I2C &ecranLCD;
   AnimationLCD animationsLCD[4];
-  int tempsDepartAnimationLCD;
+  long tempsDepartAnimationLCD;
   int imageActuelleAnimation;
 
 public:
@@ -875,7 +875,7 @@ private:
   String valeurRequeteAPI;
   String UrlRequeteAPI;
   String etatDeLaMeteo;
-  int dernierTempsFecthEtatMeteo;
+  long dernierTempsFecthEtatMeteo;
 
   //static TaskHandle_t tacheDedieeFetchAPI;
   //const static BaseType_t deuxiemeCoeur = 1;
