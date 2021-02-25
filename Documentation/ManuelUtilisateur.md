@@ -2,6 +2,14 @@
 ## Information(s) pertinente(s)s :
 - L’altitude est basée sur la pression atmosphérique (hPa). Étant donné que la pression change souvent même en restant à la même altitude, les données sur l’altitude ne sont qu’une estimation très peu précise.
 
+## Fonctionnement général de la station météo
+La station météo, très simple à utiliser, fonctionne de cette manière. Lorsque vous la démarrez en déplaçant le commutateur de la pile vers la droite, elle démarre et essaie de se connecter à un Wifi dans sa zone de réception. Naturellement, c'est si un de ces réseau a été configuré dans le passé. À son premier démarrage, la station se mettra en point d'accès et toutes les étapes à suivre sont indiquées plus loin dans ce manuel! N'oubliez pas que ce modèle a été pensée et développée de sorte qu'elle est dépendante de logiciels qui reçoivent des messages de type 'File De Message'. Il vous faut un Serveur de file de message (voir la partie sur la configuration du logiciel de domotique et de la station).
+
+Lorsque la station est bien configurée, elle a ces fonctionnalités suivantes:
+- Envoyer des données barométriques (Température, Pression, Humidité, Altitude) a des appareils connectés sur une application de domotique.
+- Afficher sur le LCD en alternance de 4 secondes les informations suivantes: Température Et Pression / Humidite et Altitude / État de la météo extérieure 
+- Informer via le LCD de quelques informations au niveau de la configuration (connexion en cours) (Mode Point Acces Active) (File de message deconnectée)
+
 ## Configurations du logiciel de domotique
 *Ce manuel d’utilisation explique comment utiliser Home Assistant. Si vous souhaitez utiliser un autre logiciel de domotique, vous devrez vous référencer à la documentation de celui-ci pour le configurer mais vous pourrez l’utiliser tant que vous fournissez l’adresse ip et le port du logiciel dans la configuration de la station ainsi que le nom d’utilisateur et le mot de passe de votre file de messages.*
 
