@@ -12,6 +12,7 @@ Lorsque la station est bien configurée, elle a ces fonctionnalités suivantes:
 - Envoyer des données barométriques (Température, Pression, Humidité, Altitude) a des appareils connectés sur une application de domotique.
 - Afficher sur le LCD en alternance de 4 secondes les informations suivantes: Température Et Pression / Humidite et Altitude / État de la météo extérieure 
 - Informer via le LCD de quelques informations au niveau de la configuration (ERREUR MQTT / File de message domotique) (Mode Point Acces Active). À Chaque boucle du LCD, si la connexion au serveur de message est perdue, le système tentera de se reconnecter. Le cas échéant, le programme poursuit son exécution.
+- Une fois par heure, la station fait une requête sur internet ( requête API ) et reçois l'état de la météo. C'est comme ça que l'animation de météo sur le LCD est mise-à-jour.
 - Le bouton jaune lance le portail de configuration réseau de la station. Il suffit d'appuyer sur le bouton, puis à l'aide d'un appareil WiFi il est possible de se connecter et de reconfigurer tous les paramètres réseaux nécessaires. C'est la façon la plus simple et sur demande de modifier vos paramètres réseaux (WiFi et Serveur)
 
 ## Configurations du logiciel de domotique
