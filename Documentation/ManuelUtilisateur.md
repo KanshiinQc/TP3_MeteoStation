@@ -78,6 +78,10 @@ sensor:
 
 Ces capteurs permettent de recevoir les 4 informations envoyées par la station météo indépendemment. Ceci permet de faire un affichage unique pour chaque valeur.
 
+*Pour appliquer les changements, assurez vous de redémarrer la machine virtuelle.*
+
+![Gestion du Dashboard](Images/RedemarrerServeur.png)
+
 ### Ajout de cartes
 Un fois les capteurs fonctionnels, il est maintenant possible de créer des cartes qui affichent leurs valeurs. Pour cela, vous devez aller dans l’onglet « Aperçu » puis sélectionnez les 3 petits points en haut à droite et « Modifier le tableau de bord ».
 
