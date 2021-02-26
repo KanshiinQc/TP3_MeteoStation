@@ -1,11 +1,14 @@
 # Station météo – Manuel d’utilisation
 ## Information(s) pertinente(s)s :
 - L’altitude est basée sur la pression atmosphérique (hPa). Étant donné que la pression change souvent même en restant à la même altitude, les données sur l’altitude ne sont qu’une estimation très peu précise.
+- Si la station semble ne pas fonctionner comme elle devrait, seulement la redémarrer à l'aide du commutateur physique près de la pile. Étant donné que la station sauvegarde les configurations, elle se relancera sans problème.
 
 ## Fonctionnement général de la station météo
 La station météo, très simple à utiliser, fonctionne de cette manière. Lorsque vous la démarrez en déplaçant le commutateur de la pile vers la droite, elle essaie de se connecter à un Wifi dans sa zone de réception. Naturellement, c'est si un de ces réseau a été configuré dans le passé. À son premier démarrage, la station se mettra en point d'accès et toutes les étapes à suivre sont indiquées plus loin dans ce manuel! N'oubliez pas que ce modèle a été pensée et développée de sorte qu'elle est assez dépendante de logiciels qui reçoivent des messages de type 'File De Message'. Il vous faut un Serveur de file de message (voir la partie sur la configuration du logiciel de domotique et de la station). Après la connexion Wifi, la station météo tente de se connecter au serveur de messages.
 
 Lorsque la station est bien configurée, elle a ces fonctionnalités suivantes:
+- La station est 100% sans fil, lorsqu'elle n'a pas besoin d'être rechargée. En effet, en utilisant le WiFi pour sa connectivité réseau et une pile pour son alimentation, vous pourrez la déplacer où bon vous semble.
+- La durée de vie de la pile est d'environ 20 heures à pleine charge.
 - Envoyer des données barométriques (Température, Pression, Humidité, Altitude) a des appareils connectés sur une application de domotique.
 - Afficher sur le LCD en alternance de 4 secondes les informations suivantes: Température Et Pression / Humidite et Altitude / État de la météo extérieure 
 - Informer via le LCD de quelques informations au niveau de la configuration (ERREUR MQTT / File de message domotique) (Mode Point Acces Active). À Chaque boucle du LCD, si la connexion au serveur de message est perdue, le système tentera de se reconnecter. Le cas échéant, le programme poursuit son exécution.
