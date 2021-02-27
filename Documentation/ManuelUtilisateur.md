@@ -79,7 +79,7 @@ sensor:
 
 Ces capteurs permettent de recevoir les 4 informations envoyées par la station météo indépendemment. Ceci permet de faire un affichage unique pour chaque valeur.
 
-*Pour appliquer les changements, assurez vous de redémarrer la machine virtuelle.*
+*Pour appliquer les changements, assurez vous de redémarrer le serveur Home Assistant*
 
 ![Gestion du Dashboard](Images/RedemarrerServeur.png)
 
